@@ -25,8 +25,8 @@ export default function LoginPage() {
       <Auth
         supabaseClient={supabase}
         appearance={{ theme: ThemeSupa }}
-        providers={['google', 'kakao']} // 필요 없다면 이 줄을 지워도 됩니다.
-        redirectTo={`${process.env.NEXT_PUBLIC_VERCEL_URL || 'http://localhost:3000'}/auth/callback`}
+        providers={['google', 'kakao']}
+        redirectTo={`${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`}
       />
     </div>
   )
