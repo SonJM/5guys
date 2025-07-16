@@ -171,3 +171,22 @@ export async function createGroupAction(groupName: string) {
   revalidatePath('/')
   return { success: true }
 }
+
+export async function inviteUserAction(groupId: number, userIdToInvite: string) {
+  if (!groupId) return { error: '그룹이 선택되지 않았습니다.' };
+  if (!userIdToInvite) return { error: '초대할 사용자를 선택해주세요.' };
+
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const { error: inviteError } = await supabase
+    .from('group_members')
+    .insert({ group_id: groupId, user_id: userIdToInvite });
+
+  if (inviteError) {
+    return { error: '멤버 초대에 실패했습니다: ' + inviteError.message };
+  }
+
+  revalidatePath('/');
+  return { success: true };
+}

@@ -9,7 +9,7 @@ export default function SignOutButton() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
-    router.refresh() // 페이지를 새로고침하여 상태를 업데이트합니다.
+    router.refresh()
   }
 
   return (

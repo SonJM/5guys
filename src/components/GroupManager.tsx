@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/client'
 import CreateGroupForm from './CreateGroupForm'
+import InviteMemberForm from './InviteMemberForm';
 
 // 그룹의 타입을 정의합니다.
 type Group = {
@@ -62,6 +63,11 @@ export default function GroupManager({ user, selectedGroupId, setSelectedGroupId
             ))}
           </select>
         )}
+      </div>
+
+      <div className="mt-6">
+        <h4 className="font-semibold dark:text-slate-100">멤버 초대하기:</h4>
+        <InviteMemberForm groupId={selectedGroupId} />
       </div>
     </div>
   )
