@@ -33,7 +33,7 @@ export async function middleware(request: NextRequest) {
               headers: request.headers,
             },
           })
-          response.cookies.delete(name, options)
+          response.cookies.delete(name)
         },
       },
     }

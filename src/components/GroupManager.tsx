@@ -23,7 +23,7 @@ export default function GroupManager({ user, selectedGroupId, setSelectedGroupId
 
   useEffect(() => {
     const fetchGroups = async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('groups')
         .select('id, name')
         .in('id', 

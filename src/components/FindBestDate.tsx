@@ -43,7 +43,7 @@ export default function FindBestDate({ selectedGroupId }: { selectedGroupId: num
         setResults(data.result)
       }
     } catch (e) {
-      setError('알 수 없는 에러가 발생했습니다.')
+      setError(`알 수 없는 에러가 발생했습니다: ${(e as Error).message}`)
     } finally {
       setIsLoading(false)
     }

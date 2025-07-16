@@ -62,7 +62,7 @@ export default function OcrUploader() {
       const nextLine = lines[i + 1].trim();
 
       // 현재 줄이 주로 숫자로 이루어져 있는지 확인 (날짜 줄 후보)
-      if (/^[\d\s]+$/.test(currentLine) && currentLine.match(/\d/g)?.length ?? 0 > 2) {
+      if (/^[\d\s]+$/.test(currentLine) && (currentLine.match(/\d/g)?.length ?? 0) > 2) {
         
         // 다음 줄이 주로 대문자로 이루어져 있는지 확인 (근무 형태 줄 후보)
         if (/^([A-Z]\s*)+$/.test(nextLine.replace(/\|/g, ''))) {

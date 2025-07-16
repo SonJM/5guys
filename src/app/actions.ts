@@ -25,6 +25,15 @@ function toYYYYMMDD(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+type ProfileWithSchedules = {
+  id: string;
+  username: string | null;
+  schedules: {
+    date: string;
+    status: string;
+  }[];
+};
+
 
 export async function findBestDateAction(
   duration: number,
@@ -50,7 +59,9 @@ export async function findBestDateAction(
   if (membersError) return { error: '그룹 멤버 정보를 가져오는 데 실패했습니다.' }
 
   // Supabase의 join 결과 형식에 맞춰 실제 프로필 데이터만 추출합니다.
-  const profiles = groupMembers.map(m => m.profiles).filter(p => p !== null) as any[];
+  const profiles = groupMembers
+    .map(m => m.profiles)
+    .filter(p => p !== null) as unknown as ProfileWithSchedules[];
 
   if (!profiles || profiles.length === 0) {
     return { error: '그룹에 등록된 사용자가 없습니다.' }
@@ -80,7 +91,7 @@ export async function findBestDateAction(
         const checkDate = new Date(currentStartDate.getTime() + i * 24 * 60 * 60 * 1000)
         const dateString = toYYYYMMDD(checkDate) // 시간대 문제없는 헬퍼 함수 사용
 
-        const schedule = profile.schedules.find(s => s.date === dateString)
+        const schedule = profile.schedules.find((s: { date: string; status: string }) => s.date === dateString)
         if (schedule?.status === '근무') {
           userVacations.push(dateString)
         }

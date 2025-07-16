@@ -23,7 +23,7 @@ export default function ScheduleCalendar({ user }: { user: User }) {
   useEffect(() => {
     const fetchSchedules = async () => {
       setIsLoading(true)
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('schedules')
         .select('*')
         .eq('user_id', user.id)
@@ -72,7 +72,7 @@ export default function ScheduleCalendar({ user }: { user: User }) {
       }
     } else {
       // 스케줄 추가 또는 업데이트 (upsert)
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('schedules')
         .upsert({ user_id: user.id, date: dateString, status: status })
         .select()
