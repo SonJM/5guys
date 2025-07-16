@@ -55,7 +55,7 @@ export default function HomePage() {
 
         {/* 나중에 selectedGroupId를 이 컴포넌트들에도 전달할 예정입니다. */}
         <ScheduleCalendar user={user} />
-        <FindBestDate />
+        <FindBestDate selectedGroupId={selectedGroupId} />
         <OcrUploader />
       </div>
     </div>

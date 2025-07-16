@@ -14,7 +14,7 @@ type VacationOption = {
   }[]
 }
 
-export default function FindBestDate() {
+export default function FindBestDate({ selectedGroupId }: { selectedGroupId: number | null }) {
   const [duration, setDuration] = useState(3)
   const [searchStart, setSearchStart] = useState('')
   const [searchEnd, setSearchEnd] = useState('')
@@ -26,7 +26,7 @@ export default function FindBestDate() {
     event.preventDefault()
     setIsLoading(true)
     setError(null)
-    setResults([]) 
+    setResults([])
 
     if (!searchStart || !searchEnd) {
       setError('검색할 날짜 범위를 지정해주세요.')
@@ -35,7 +35,8 @@ export default function FindBestDate() {
     }
 
     try {
-      const data = await findBestDateAction(duration, searchStart, searchEnd)
+      // 서버 액션에 selectedGroupId를 전달합니다.
+      const data = await findBestDateAction(duration, searchStart, searchEnd, selectedGroupId)
       if (data.error) {
         setError(data.error)
       } else if (data.result) {

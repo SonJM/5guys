@@ -29,18 +29,32 @@ function toYYYYMMDD(date: Date): string {
 export async function findBestDateAction(
   duration: number,
   searchStart: string,
-  searchEnd: string
+  searchEnd: string,
+  groupId: number | null
 ): Promise<{ result?: VacationOption[]; error?: string }> {
+
+  if (!groupId) {
+    return { error: '그룹을 먼저 선택해주세요.' }
+  }
+
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
 
-  // 1. 모든 사용자와 그들의 스케줄 정보를 가져옵니다.
-  const { data: profiles, error: profilesError } = await supabase
-    .from('profiles')
-    .select('id, username, schedules(date, status)')
+  const { data: groupMembers, error: membersError } = await supabase
+    .from('group_members')
+    .select(`
+      profiles (id, username, schedules (date, status))
+    `)
+    .eq('group_id', groupId)
 
-  if (profilesError) return { error: '사용자 정보를 가져오는 데 실패했습니다.' }
-  if (!profiles || profiles.length === 0) return { error: '등록된 사용자가 없습니다.' }
+  if (membersError) return { error: '그룹 멤버 정보를 가져오는 데 실패했습니다.' }
+
+  // Supabase의 join 결과 형식에 맞춰 실제 프로필 데이터만 추출합니다.
+  const profiles = groupMembers.map(m => m.profiles).filter(p => p !== null) as any[];
+
+  if (!profiles || profiles.length === 0) {
+    return { error: '그룹에 등록된 사용자가 없습니다.' }
+  }
 
   // 2. 날짜를 시간대 문제없는 UTC 기준으로 처리합니다.
   const startDate = new Date(`${searchStart}T00:00:00Z`)
@@ -57,7 +71,7 @@ export async function findBestDateAction(
     if (currentEndDate > endDate) break
 
     let currentVacationDays = 0
-    let currentRequiredVacations: { username: string; dates: string[] }[] = []
+    const currentRequiredVacations: { username: string; dates: string[] }[] = []
 
     // 4. 각 사용자의 필요 휴가 일수를 계산합니다.
     for (const profile of profiles) {
