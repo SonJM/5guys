@@ -191,3 +191,23 @@ export async function inviteUserAction(groupId: number, userIdToInvite: string) 
   revalidatePath('/');
   return { success: true };
 }
+
+export async function updateUsernameAction(username: string) {
+  if (!username) return { error: '이름을 입력해주세요.' };
+
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return { error: '로그인이 필요합니다.' };
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ username: username })
+    .eq('id', user.id);
+
+  if (error) return { error: '이름 업데이트에 실패했습니다.' };
+
+  revalidatePath('/');
+  return { success: true };
+}

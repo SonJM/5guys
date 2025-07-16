@@ -27,31 +27,35 @@ body {
 
 /* react-day-picker 다크 모드 스타일 */
 .dark .rdp {
-  --rdp-caption-color: #e2e8f0; /* slate-200 */
-  --rdp-nav-color: #94a3b8; /* slate-400 */
-  --rdp-cell-color: #cbd5e1; /* slate-300 */
-  --rdp-heading-color: #f1f5f9; /* slate-100 */
+  --rdp-caption-color: #e2e8f0;
+  --rdp-nav-color: #94a3b8;
+  --rdp-cell-color: #cbd5e1;
+  --rdp-heading-color: #f1f5f9;
   --rdp-button-color: #cbd5e1;
 }
 .dark .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
-    background-color: #334155; /* slate-700 */
+    background-color: #334155;
 }
 .dark .rdp-day_selected, .dark .rdp-day_selected:hover {
-    background-color: #2563eb !important; /* blue-600 */
-    color: #f8fafc !important; /* slate-50 */
+    background-color: #2563eb !important;
+    color: #f8fafc !important;
 }
 .dark .rdp-day_today {
-    color: #3b82f6 !important; /* blue-500 */
+    color: #3b82f6 !important;
     font-weight: bold;
 }
 
-/* '근무'일 스타일을 !important로 지정하여 우선순위를 높입니다. */
-.rdp-day_work {
-    background-color: #60a5fa; /* blue-400 */
-    color: #1e3a8a; /* blue-900 */
+/* 근무 형태별 스타일 */
+.rdp-day_workA { background-color: #93c5fd; color: #1e3a8a; } /* blue-300 */
+.rdp-day_workB { background-color: #7dd3fc; color: #0c4a6e; } /* sky-300 */
+.rdp-day_workC { background-color: #5eead4; color: #134e4a; } /* teal-300 */
+
+/* 다크 모드에서의 근무 형태별 스타일 */
+.dark .rdp-day_workA { background-color: #1e40af; color: #eff6ff; } /* blue-800 */
+.dark .rdp-day_workB { background-color: #0369a1; color: #e0f2fe; } /* sky-700 */
+.dark .rdp-day_workC { background-color: #0f766e; color: #ccfbf1; } /* teal-700 */
+
+/* 모든 근무일의 글자를 굵게 처리 */
+.rdp-day_workA, .rdp-day_workB, .rdp-day_workC {
     font-weight: bold;
-}
-.dark .rdp-day_work, .dark .rdp-day_work:hover {
-    background-color: #1e40af !important; /* blue-800 */
-    color: #f8fafc !important; /* slate-50 */
 }
