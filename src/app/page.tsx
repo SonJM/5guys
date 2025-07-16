@@ -53,8 +53,7 @@ export default function HomePage() {
         </p>
         <p className="text-slate-500 dark:text-slate-400">달력에서 날짜를 클릭하여 근무 일정을 등록하세요.</p>
 
-        {/* 나중에 selectedGroupId를 이 컴포넌트들에도 전달할 예정입니다. */}
-        <ScheduleCalendar user={user} />
+        <ScheduleCalendar user={user} selectedGroupId={selectedGroupId} />
         <FindBestDate selectedGroupId={selectedGroupId} />
         <OcrUploader />
       </div>

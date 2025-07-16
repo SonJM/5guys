@@ -21,7 +21,7 @@ export default function InviteMemberForm({ groupId }: { groupId: number | null }
   useEffect(() => {
     const fetchUsers = async () => {
       const supabase = createClient();
-      const { data, error } = await supabase.from('profiles').select('*');
+      const { data } = await supabase.from('profiles').select('*');
       if (data) {
         setAllUsers(data);
       }

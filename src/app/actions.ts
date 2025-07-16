@@ -92,7 +92,8 @@ export async function findBestDateAction(
         const dateString = toYYYYMMDD(checkDate) // 시간대 문제없는 헬퍼 함수 사용
 
         const schedule = profile.schedules.find((s: { date: string; status: string }) => s.date === dateString)
-        if (schedule?.status === '근무') {
+        // '휴무'가 아닌 모든 상태를 근무일로 간주합니다.
+        if (schedule && schedule.status !== '휴무') {
           userVacations.push(dateString)
         }
       }
