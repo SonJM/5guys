@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { findBestDateAction } from '@/app/actions'
-import AddToGoogleCalendar from './AddToGoogleCalendar'
+import AddToGoogleCalendar from '@/components/AddToGoogleCalendar'
 
 // 서버에서 오는 결과 타입을 정의합니다.
 type VacationOption = {
@@ -56,7 +56,28 @@ export default function FindBestDate({ selectedGroupId }: { selectedGroupId: num
     <div className="mt-12 p-6 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50">
       <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200">🏖️ 최적의 여행 날짜 찾기</h3>
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-        {/* ... (폼의 다른 부분은 이전과 동일) ... */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div>
+            <label htmlFor="searchStart" className="block text-sm font-medium text-slate-600 dark:text-slate-400">검색 시작일</label>
+            <input
+              type="date"
+              id="searchStart"
+              value={searchStart}
+              onChange={(e) => setSearchStart(e.target.value)}
+              className="mt-1 p-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
+            />
+          </div>
+          <div>
+            <label htmlFor="searchEnd" className="block text-sm font-medium text-slate-600 dark:text-slate-400">검색 종료일</label>
+            <input
+              type="date"
+              id="searchEnd"
+              value={searchEnd}
+              onChange={(e) => setSearchEnd(e.target.value)}
+              className="mt-1 p-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
+            />
+          </div>
+        </div>
         <div className="flex items-end gap-4">
           <div>
             <label htmlFor="duration" className="block text-sm font-medium text-slate-600 dark:text-slate-400">여행 기간 (일)</label>

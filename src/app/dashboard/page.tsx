@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-
 import SignOutButton from '@/components/SignOutButton'
 import ScheduleCalendar from '@/components/ScheduleCalendar'
 import FindBestDate from '@/components/FindBestDate'
@@ -30,17 +29,22 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setUser(user)
-        const { data: userProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
-        setProfile(userProfile)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          setUser(user)
+          const { data: userProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single()
+          setProfile(userProfile)
+        }
+      } catch (e) {
+        console.error("Error checking user:", e)
+      } finally {
+        setIsLoading(false)
       }
-      setIsLoading(false)
     }
     checkUser()
   }, [supabase])
@@ -59,6 +63,7 @@ export default function DashboardPage() {
     return <div className="flex justify-center items-center min-h-screen"><p>Loading...</p></div>
   }
 
+  // user 객체가 있을 때만 렌더링하도록 변경 (profile이 null이어도 괜찮음)
   if (user) {
     return (
       <>
