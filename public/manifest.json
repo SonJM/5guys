@@ -1,0 +1,21 @@
+{
+    "name": "5총사 스케줄 조율기",
+    "short_name": "5총사",
+    "description": "친구들과의 약속, 최소 휴가로 잡으세요!",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#1e293b",
+    "theme_color": "#0f172a",
+    "icons": [
+      {
+        "src": "/icon-192x192.png",
+        "sizes": "192x192",
+        "type": "image/png"
+      },
+      {
+        "src": "/icon-512x512.png",
+        "sizes": "512x512",
+        "type": "image/png"
+      }
+    ]
+  }
