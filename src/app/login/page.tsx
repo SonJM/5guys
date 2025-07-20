@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/client'
-import Link from 'next/link' // Link 컴포넌트를 임포트합니다.
+import Link from 'next/link'
 
 import SignOutButton from '@/components/SignOutButton'
 import ScheduleCalendar from '@/components/ScheduleCalendar'

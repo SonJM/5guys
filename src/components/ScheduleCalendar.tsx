@@ -10,6 +10,7 @@ import 'react-day-picker/dist/style.css'
 type MemberSchedule = {
   date: string
   status: string
+  user_id: string 
   profiles: {
     username: string | null
   } | null
@@ -26,21 +27,17 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
   const [schedules, setSchedules] = useState<MemberSchedule[]>([])
   const [selectedDay, setSelectedDay] = useState<Date | undefined>()
   const [isLoading, setIsLoading] = useState(true)
-  const [refetchTrigger, setRefetchTrigger] = useState(0)
 
   // 선택된 그룹이 바뀔 때마다 해당 그룹의 스케줄을 다시 불러옵니다.
   useEffect(() => {
     const fetchSchedules = async () => {
-      // 그룹이 선택되지 않았으면 스케줄을 비우고 로딩을 멈춥니다.
       if (!selectedGroupId) {
         setSchedules([])
         setIsLoading(false)
         return
       }
-
       setIsLoading(true)
       
-      // 선택된 그룹의 모든 멤버 ID를 가져옵니다.
       const { data: members, error: memberError } = await supabase
         .from('group_members')
         .select('user_id')
@@ -58,24 +55,17 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
       // 멤버 ID 목록을 사용해 해당 멤버들의 스케줄을 모두 가져옵니다.
       const { data, error } = await supabase
         .from('schedules')
-        .select(`
-          date,
-          status,
-          profiles ( username )
-        `)
+        .select(`date, status, user_id, profiles ( username )`)
         .in('user_id', memberIds)
 
       if (error) {
         console.error("Error fetching group schedules:", error)
         setSchedules([])
       } else if (data) {
-        setSchedules(
-          data.map(schedule => ({
-            date: schedule.date,
-            status: schedule.status,
-            profiles: Array.isArray(schedule.profiles) && schedule.profiles.length > 0 ? { username: schedule.profiles[0].username } : null,
-          }))
-        )
+        setSchedules(data.map(schedule => ({
+          ...schedule,
+          profiles: Array.isArray(schedule.profiles) ? schedule.profiles[0] : schedule.profiles,
+        })))
       }
       setIsLoading(false)
     }
@@ -85,27 +75,49 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
   
   // 날짜를 YYYY-MM-DD 형식의 문자열로 변환하는 함수
   const toISODateString = (date: Date) => {
-    return new Date(date.getTime() - (date.getTimezoneOffset() * 60000 ))
-      .toISOString()
-      .split("T")[0];
+    return new Date(date.getTime() - (date.getTimezoneOffset() * 60000 )).toISOString().split("T")[0];
   }
 
-  // '나의' 스케줄을 저장하는 함수 (다른 사람 스케줄은 수정 불가)
+  // '나의' 스케줄을 저장하고 즉시 UI에 반영하는 함수
   const handleSaveSchedule = async (status: 'A' | 'B' | 'C' | '휴무' | '삭제') => {
     if (!selectedDay) return
     const dateString = toISODateString(selectedDay)
 
     if (status === '삭제') {
-      await supabase.from('schedules').delete().match({ user_id: user.id, date: dateString })
+      const { error } = await supabase
+        .from('schedules')
+        .delete()
+        .match({ user_id: user.id, date: dateString })
+
+      if (!error) {
+        setSchedules(prev => prev.filter(s => !(s.user_id === user.id && s.date === dateString)))
+      }
     } else {
-      await supabase.from('schedules').upsert({ user_id: user.id, date: dateString, status: status })
+      const newScheduleData = { user_id: user.id, date: dateString, status: status };
+      // upsert는 select를 함께 호출해야 반환값을 받을 수 있습니다.
+      const { data, error } = await supabase
+        .from('schedules')
+        .upsert(newScheduleData)
+        .select(`*, profiles (username)`)
+        .single();
+        
+      if (!error && data) {
+        setSchedules(prev => {
+          const existingIndex = prev.findIndex(s => s.user_id === user.id && s.date === dateString);
+          if (existingIndex > -1) {
+            const newSchedules = [...prev];
+            newSchedules[existingIndex] = data;
+            return newSchedules;
+          } else {
+            return [...prev, data];
+          }
+        });
+      }
     }
-    
     setSelectedDay(undefined)
-    setRefetchTrigger(count => count + 1)
   }
   
-  // --- 근무 형태별로 날짜를 분류합니다 ---
+  // 근무 형태별로 날짜를 분류합니다.
   const workA_Days = schedules.filter(s => s.status === 'A').map(s => new Date(`${s.date}T00:00:00Z`));
   const workB_Days = schedules.filter(s => s.status === 'B').map(s => new Date(`${s.date}T00:00:00Z`));
   const workC_Days = schedules.filter(s => s.status === 'C').map(s => new Date(`${s.date}T00:00:00Z`));
@@ -121,13 +133,11 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
         mode="single"
         selected={selectedDay}
         onDayClick={(day) => setSelectedDay(day)}
-        // modifiers에 A, B, C 근무를 추가합니다.
         modifiers={{ 
           workA: workA_Days,
           workB: workB_Days,
           workC: workC_Days,
         }}
-        // 각 근무 형태별 스타일 클래스를 지정합니다.
         modifiersClassNames={{
           workA: 'rdp-day_workA',
           workB: 'rdp-day_workB',
@@ -142,7 +152,6 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
             )}
             <ul className="text-xs text-slate-500 dark:text-slate-400">
                 {membersWorkingOnSelectedDay.map((s, i) => (
-                    // 근무 형태를 함께 표시합니다.
                     <li key={i}>- {s.profiles?.username || '이름 없음'} ({s.status})</li>
                 ))}
             </ul>
@@ -157,7 +166,6 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                     {selectedDay.toLocaleDateString()}
                 </p>
-                {/* --- 버튼을 A, B, C 근무로 변경합니다 --- */}
                 <div className="mt-4 grid grid-cols-2 gap-2">
                     <button onClick={() => handleSaveSchedule('A')} className="px-3 py-1 bg-blue-500 text-white text-sm rounded-md hover:bg-blue-600">A 근무</button>
                     <button onClick={() => handleSaveSchedule('B')} className="px-3 py-1 bg-sky-500 text-white text-sm rounded-md hover:bg-sky-600">B 근무</button>
