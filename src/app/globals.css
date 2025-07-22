@@ -1,10 +1,31 @@
-/* 1. Tailwind CSS 기본 지시어 (가장 위에 있어야 합니다) */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* 3. react-day-picker 커스텀 스타일 */
-/* 다크 모드 기본 스타일 */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* react-day-picker 다크 모드 스타일 */
 .dark .rdp {
   --rdp-caption-color: #e2e8f0;
   --rdp-nav-color: #94a3b8;
@@ -30,9 +51,9 @@
 .rdp-day_workC { background-color: #5eead4; color: #134e4a; } /* teal-300 */
 
 /* 다크 모드에서의 근무 형태별 스타일 */
-.dark .rdp-day_workA, .dark .rdp-day_workA:hover { background-color: #1e40af !important; color: #eff6ff !important; }
-.dark .rdp-day_workB, .dark .rdp-day_workB:hover { background-color: #0369a1 !important; color: #e0f2fe !important; }
-.dark .rdp-day_workC, .dark .rdp-day_workC:hover { background-color: #0f766e !important; color: #ccfbf1 !important; }
+.dark .rdp-day_workA { background-color: #1e40af; color: #eff6ff; } /* blue-800 */
+.dark .rdp-day_workB { background-color: #0369a1; color: #e0f2fe; } /* sky-700 */
+.dark .rdp-day_workC { background-color: #0f766e; color: #ccfbf1; } /* teal-700 */
 
 /* 모든 근무일의 글자를 굵게 처리 */
 .rdp-day_workA, .rdp-day_workB, .rdp-day_workC {
