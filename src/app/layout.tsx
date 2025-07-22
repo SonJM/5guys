@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: '5총사',
   description: '우리의 여행을 위한 스케줄 조율기',
-  manifest: '/public/manifest.json', 
+  manifest: '/manifest.json', 
 }
 
 export default function RootLayout({
