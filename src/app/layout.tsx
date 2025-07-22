@@ -1,13 +1,14 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import { ThemeProvider } from '@/components/ThemeProvider' // ThemeProvider 임포트
+import { ThemeProvider } from '@/components/ThemeProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: '5총사',
   description: '우리의 여행을 위한 스케줄 조율기',
+  manifest: '/manifest.json', 
 }
 
 export default function RootLayout({
@@ -17,8 +18,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" suppressHydrationWarning>
+      <head>
+        {/* 이 متا 태그를 추가하여 모바일 화면 크기를 올바르게 인식하도록 합니다. */}
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#0f172a" />
+      </head>
       <body className={`${inter.className} bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50`}>
-        {/* ThemeProvider로 감싸고, 시스템 테마를 따르도록 설정 */}
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

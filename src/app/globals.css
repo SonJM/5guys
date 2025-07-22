@@ -3,11 +3,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 2. 디버깅을 위한 빨간색 테두리 (문제 해결 후 삭제 예정) */
-* {
-  border: 1px solid red !important;
-}
-
 /* 3. react-day-picker 커스텀 스타일 */
 /* 다크 모드 기본 스타일 */
 .dark .rdp {
