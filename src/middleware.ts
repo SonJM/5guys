@@ -58,5 +58,7 @@ export const config = {
      * - account (보호된 경로)
      */
     '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/dashboard/:path*',
+    '/account/:path*',
   ],
 }
