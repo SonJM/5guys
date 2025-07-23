@@ -1,3 +1,4 @@
+// src/components/GroupManager.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -6,7 +7,6 @@ import { createClient } from '@/utils/supabase/client'
 import CreateGroupForm from './CreateGroupForm'
 import InviteMemberForm from './InviteMemberForm';
 
-// 그룹의 타입을 정의합니다.
 type Group = {
   id: number
   name: string
@@ -33,7 +33,6 @@ export default function GroupManager({ user, selectedGroupId, setSelectedGroupId
       
       if (data) {
         setGroups(data)
-        // 그룹이 있는데 선택된 그룹이 없으면, 첫 번째 그룹을 기본으로 선택
         if (data.length > 0 && !selectedGroupId) {
           setSelectedGroupId(data[0].id)
         }
@@ -45,16 +44,20 @@ export default function GroupManager({ user, selectedGroupId, setSelectedGroupId
 
 
   return (
-    <div className="mb-8 p-6 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50/50 dark:bg-slate-800/50">
-      <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200">👥 그룹 관리</h3>
-      <div className="mt-4 flex flex-wrap items-center gap-4">
+    // p-0로 변경하여 부모 컴포넌트의 패딩을 사용하도록 함
+    <div className="space-y-6">
+      <div>
+        <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">새 그룹 만들기</h4>
         <CreateGroupForm />
-        
-        {groups.length > 0 && (
+      </div>
+      
+      {groups.length > 0 && (
+        <div>
+          <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">그룹 선택</h4>
           <select 
             value={selectedGroupId || ''}
             onChange={(e) => setSelectedGroupId(Number(e.target.value))}
-            className="p-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
+            className="w-full p-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
           >
             {groups.map(group => (
               <option key={group.id} value={group.id}>
@@ -62,11 +65,11 @@ export default function GroupManager({ user, selectedGroupId, setSelectedGroupId
               </option>
             ))}
           </select>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="mt-6">
-        <h4 className="font-semibold dark:text-slate-100">멤버 초대하기:</h4>
+      <div>
+        <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">멤버 초대하기</h4>
         <InviteMemberForm groupId={selectedGroupId} />
       </div>
     </div>
