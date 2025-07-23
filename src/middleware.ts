@@ -18,9 +18,6 @@ export async function middleware(request: NextRequest) {
         },
         set(name: string, value: string, options: CookieOptions) {
           request.cookies.set({ name, value, ...options })
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          })
           response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
@@ -42,12 +39,10 @@ export async function middleware(request: NextRequest) {
   const protectedPaths = ['/dashboard', '/account']
   const publicPaths = ['/', '/login']
 
-  // 시나리오 1: 로그인하지 않은 사용자가 보호된 경로에 접근 시도
   if (!user && protectedPaths.includes(pathname)) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // 시나리오 2: 이미 로그인한 사용자가 공개 경로에 접근 시도
   if (user && publicPaths.includes(pathname)) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
