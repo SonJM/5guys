@@ -50,7 +50,7 @@ export default function AccountPage() {
   return (
     <div className="flex flex-col items-center min-h-screen p-4 sm:p-8 bg-slate-50 dark:bg-slate-900">
       <div className="w-full max-w-xl">
-        <Link href="/" className="text-sm text-blue-500 hover:underline">
+        <Link href="/dashboard" className="text-sm text-blue-500 hover:underline">
           &larr; 메인 페이지로 돌아가기
         </Link>
         <div className="w-full bg-white dark:bg-slate-800 p-8 mt-4 rounded-xl shadow-lg border dark:border-slate-700">
