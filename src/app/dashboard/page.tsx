@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
@@ -21,7 +20,6 @@ type Profile = {
 
 export default function DashboardPage() {
   const supabase = createClient()
-  const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -57,7 +55,6 @@ export default function DashboardPage() {
     return <div className="flex justify-center items-center min-h-screen"><p>Loading...</p></div>
   }
 
-  // user 객체가 있을 때만 렌더링하도록 변경 (profile이 null이어도 괜찮음)
   if (user) {
     return (
       <>
