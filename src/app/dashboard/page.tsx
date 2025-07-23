@@ -49,12 +49,6 @@ export default function DashboardPage() {
     checkUser()
   }, [supabase])
 
-  useEffect(() => {
-    if (!isLoading && !user) {
-      router.push('/login')
-    }
-  }, [isLoading, user, router])
-
   const handleUsernameComplete = () => {
     window.location.reload()
   }
