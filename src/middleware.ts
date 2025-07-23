@@ -29,7 +29,6 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-
   const { pathname } = request.nextUrl
 
   const protectedPaths = ['/dashboard', '/account']
@@ -48,14 +47,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - .well-known (internal browser/tooling routes)
-     */
     '/((?!api|_next/static|_next/image|favicon.ico|.well-known).*)',
   ],
 }
