@@ -1,3 +1,4 @@
+// src/components/ScheduleCalendar.tsx
 'use client'
 
 import { createClient } from '@/utils/supabase/client'
@@ -10,7 +11,7 @@ import 'react-day-picker/dist/style.css'
 type MemberSchedule = {
   date: string
   status: string
-  user_id: string 
+  user_id: string
   profiles: {
     username: string | null
   } | null
@@ -28,7 +29,7 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
   const [selectedDay, setSelectedDay] = useState<Date | undefined>()
   const [isLoading, setIsLoading] = useState(true)
 
-  // 선택된 그룹이 바뀔 때마다 해당 그룹의 스케줄을 다시 불러옵니다.
+  // ... (useEffect 로직은 기존과 동일)
   useEffect(() => {
     const fetchSchedules = async () => {
       if (!selectedGroupId) {
@@ -37,7 +38,7 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
         return
       }
       setIsLoading(true)
-      
+
       const { data: members, error: memberError } = await supabase
         .from('group_members')
         .select('user_id')
@@ -72,13 +73,12 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
 
     fetchSchedules()
   }, [selectedGroupId, supabase])
-  
-  // 날짜를 YYYY-MM-DD 형식의 문자열로 변환하는 함수
+
   const toISODateString = (date: Date) => {
     return new Date(date.getTime() - (date.getTimezoneOffset() * 60000 )).toISOString().split("T")[0];
   }
 
-  // '나의' 스케줄을 저장하고 즉시 UI에 반영하는 함수
+  // ... (handleSaveSchedule 로직은 기존과 동일)
   const handleSaveSchedule = async (status: 'A' | 'B' | 'C' | '휴무' | '삭제') => {
     if (!selectedDay) return
     const dateString = toISODateString(selectedDay)
@@ -94,13 +94,12 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
       }
     } else {
       const newScheduleData = { user_id: user.id, date: dateString, status: status };
-      // upsert는 select를 함께 호출해야 반환값을 받을 수 있습니다.
       const { data, error } = await supabase
         .from('schedules')
         .upsert(newScheduleData)
         .select(`*, profiles (username)`)
         .single();
-        
+
       if (!error && data) {
         setSchedules(prev => {
           const existingIndex = prev.findIndex(s => s.user_id === user.id && s.date === dateString);
@@ -116,50 +115,50 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
     }
     setSelectedDay(undefined)
   }
-  
-  // 근무 형태별로 날짜를 분류합니다.
+
   const workA_Days = schedules.filter(s => s.status === 'A').map(s => new Date(`${s.date}T00:00:00Z`));
   const workB_Days = schedules.filter(s => s.status === 'B').map(s => new Date(`${s.date}T00:00:00Z`));
   const workC_Days = schedules.filter(s => s.status === 'C').map(s => new Date(`${s.date}T00:00:00Z`));
 
-  // 선택된 날짜에 근무하는 멤버 목록
-  const membersWorkingOnSelectedDay = selectedDay 
-    ? schedules.filter(s => s.date === toISODateString(selectedDay) && s.status !== '휴무') 
+  const membersWorkingOnSelectedDay = selectedDay
+    ? schedules.filter(s => s.date === toISODateString(selectedDay) && s.status !== '휴무')
     : [];
 
   return (
-    <div className="flex flex-col sm:flex-row gap-8 mt-4">
-      <DayPicker
-        mode="single"
-        selected={selectedDay}
-        onDayClick={(day) => setSelectedDay(day)}
-        modifiers={{ 
-          workA: workA_Days,
-          workB: workB_Days,
-          workC: workC_Days,
-        }}
-        modifiersClassNames={{
-          workA: 'rdp-day_workA',
-          workB: 'rdp-day_workB',
-          workC: 'rdp-day_workC',
-        }}
-        disabled={isLoading}
-        className="border rounded-lg p-4 bg-white dark:bg-slate-800 dark:border-slate-700 shadow-sm"
-        footer={
-          <div className="mt-2 min-h-[4rem]">
-            {selectedDay && membersWorkingOnSelectedDay.length > 0 && (
-                <p className="font-bold text-sm dark:text-slate-200">{selectedDay.toLocaleDateString()} 근무자:</p>
-            )}
-            <ul className="text-xs text-slate-500 dark:text-slate-400">
-                {membersWorkingOnSelectedDay.map((s, i) => (
-                    <li key={i}>- {s.profiles?.username || '이름 없음'} ({s.status})</li>
-                ))}
-            </ul>
-          </div>
-        }
-      />
-      
-      <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 min-w-[200px]">
+    <div className="flex flex-col md:flex-row gap-8 mt-6">
+      <div className="w-full md:w-auto flex justify-center">
+        <DayPicker
+          mode="single"
+          selected={selectedDay}
+          onDayClick={(day) => setSelectedDay(day)}
+          modifiers={{
+            workA: workA_Days,
+            workB: workB_Days,
+            workC: workC_Days,
+          }}
+          modifiersClassNames={{
+            workA: 'rdp-day_workA',
+            workB: 'rdp-day_workB',
+            workC: 'rdp-day_workC',
+          }}
+          disabled={isLoading}
+          className="border rounded-lg p-2 sm:p-4 bg-white dark:bg-slate-800 dark:border-slate-700 shadow-sm"
+          footer={
+            <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 min-h-[4rem] text-center">
+              {selectedDay && membersWorkingOnSelectedDay.length > 0 && (
+                  <p className="font-bold text-sm dark:text-slate-200">{selectedDay.toLocaleDateString()} 근무자:</p>
+              )}
+              <ul className="text-xs text-slate-500 dark:text-slate-400">
+                  {membersWorkingOnSelectedDay.map((s, i) => (
+                      <li key={i}>- {s.profiles?.username || '이름 없음'} ({s.status})</li>
+                  ))}
+              </ul>
+            </div>
+          }
+        />
+      </div>
+
+      <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 w-full md:w-auto md:min-w-[260px]"> {/* 최소 너비 증가 */}
         <h4 className="font-bold text-lg text-slate-800 dark:text-slate-100">내 스케줄 등록</h4>
         {selectedDay ? (
             <div>
@@ -167,11 +166,21 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
                     {selectedDay.toLocaleDateString()}
                 </p>
                 <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button onClick={() => handleSaveSchedule('A')} className="px-3 py-1 bg-blue-500 text-white text-sm rounded-md hover:bg-blue-600">A 근무</button>
-                    <button onClick={() => handleSaveSchedule('B')} className="px-3 py-1 bg-sky-500 text-white text-sm rounded-md hover:bg-sky-600">B 근무</button>
-                    <button onClick={() => handleSaveSchedule('C')} className="px-3 py-1 bg-teal-500 text-white text-sm rounded-md hover:bg-teal-600">C 근무</button>
-                    <button onClick={() => handleSaveSchedule('휴무')} className="px-3 py-1 bg-green-500 text-white text-sm rounded-md hover:bg-green-600">휴무</button>
-                    <button onClick={() => handleSaveSchedule('삭제')} className="px-3 py-1 bg-red-500 text-white text-sm rounded-md col-span-2 hover:bg-red-600">삭제</button>
+                    <button onClick={() => handleSaveSchedule('A')} className="px-3 py-2 bg-blue-500 text-white text-sm rounded-md hover:bg-blue-600 min-w-0">
+                      <span className="responsive-button-text">A 근무</span>
+                    </button>
+                    <button onClick={() => handleSaveSchedule('B')} className="px-3 py-2 bg-sky-500 text-white text-sm rounded-md hover:bg-sky-600 min-w-0">
+                      <span className="responsive-button-text">B 근무</span>
+                    </button>
+                    <button onClick={() => handleSaveSchedule('C')} className="px-3 py-2 bg-teal-500 text-white text-sm rounded-md hover:bg-teal-600 min-w-0">
+                      <span className="responsive-button-text">C 근무</span>
+                    </button>
+                    <button onClick={() => handleSaveSchedule('휴무')} className="px-3 py-2 bg-green-500 text-white text-sm rounded-md hover:bg-green-600 min-w-0">
+                      <span className="responsive-button-text">휴무</span>
+                    </button>
+                    <button onClick={() => handleSaveSchedule('삭제')} className="px-3 py-1 bg-red-500 text-white text-sm rounded-md col-span-2 hover:bg-red-600 min-w-0">
+                      <span className="responsive-button-text">삭제</span>
+                    </button>
                 </div>
             </div>
         ) : (

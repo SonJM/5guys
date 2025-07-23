@@ -139,7 +139,7 @@ export default function DashboardPage() {
               <NavButton view="schedule" label="스케줄" />
               <NavButton view="group" label="그룹 관리" />
               <NavButton view="findDate" label="날짜 찾기" />
-              <NavButton view="ocr" label="OCR 등록" />
+              <NavButton view="ocr" label="사진 등록" />
             </div>
 
             {/* --- 선택된 뷰를 렌더링하고 애니메이션 적용 --- */}

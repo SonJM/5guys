@@ -61,17 +61,44 @@ body {
     font-weight: bold;
 }
 
-/* --- 추가된 반응형 스타일 --- */
+/* --- 반응형 달력 스타일 (유지) --- */
 .rdp {
-  --rdp-cell-size: 40px; /* 기본 셀 크기 */
+  --rdp-cell-size: 40px;
+  margin: 0 auto; /* 달력이 컨테이너 중앙에 오도록 함 */
 }
 
+/* 화면이 640px보다 작을 때 (모바일) */
 @media (max-width: 640px) {
   .rdp {
-    --rdp-cell-size: 32px; /* 모바일에서 셀 크기 줄이기 */
-    font-size: 0.875rem; /* 모바일에서 폰트 크기 줄이기 */
+    --rdp-cell-size: 10vw; /* 셀 크기를 화면 너비에 비례하도록 변경 */
+    max-width: 100%; /* 달력이 부모 너비를 넘어가지 않도록 함 */
+    font-size: 0.8rem; /* 폰트 크기 추가 조정 */
   }
   .rdp-caption_label {
     font-size: 1rem;
+  }
+  .rdp-head_cell {
+    font-size: 0.75rem; /* 요일 폰트 크기 조정 */
+  }
+}
+
+/* --- 반응형 버튼 텍스트 스타일 (추가) --- */
+.responsive-button-text {
+  display: inline-block;
+  white-space: nowrap; /* 텍스트가 줄바꿈되지 않도록 설정 */
+  overflow: hidden;       /* 내용이 넘치면 숨김 */
+  text-overflow: ellipsis; /* 넘치는 텍스트를 ...으로 표시 (선택 사항) */
+  font-size: 1rem;       /* 기본 폰트 크기 */
+}
+
+@media (max-width: 480px) {
+  .responsive-button-text {
+    font-size: 0.8rem; /* 작은 화면에서 폰트 크기 줄임 */
+  }
+}
+
+@media (max-width: 320px) {
+  .responsive-button-text {
+    font-size: 0.7rem; /* 더 작은 화면에서 폰트 크기 추가 줄임 */
   }
 }
