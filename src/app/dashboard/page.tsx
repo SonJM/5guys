@@ -19,7 +19,6 @@ type Profile = {
   email: string | null;
 }
 
-// 보여줄 화면의 타입을 정의
 type View = 'schedule' | 'group' | 'findDate' | 'ocr';
 
 export default function DashboardPage() {
@@ -28,12 +27,10 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
-  // 현재 활성화된 뷰를 관리하는 상태 추가
   const [activeView, setActiveView] = useState<View>('schedule');
 
   useEffect(() => {
     const checkUser = async () => {
-      // ... (기존 로직 동일)
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
@@ -59,7 +56,6 @@ export default function DashboardPage() {
   }
 
   const renderActiveView = () => {
-    // activeView 상태에 따라 다른 컴포넌트를 렌더링하는 함수
     switch (activeView) {
       case 'schedule':
         return (
@@ -95,7 +91,8 @@ export default function DashboardPage() {
   const NavButton = ({ view, label }: { view: View, label: string }) => (
     <button
       onClick={() => setActiveView(view)}
-      className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${
+      // flex-1 추가로 버튼들이 균등하게 공간을 차지하도록 함
+      className={`flex-1 px-2 sm:px-4 py-2 text-xs sm:text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${
         activeView === view
           ? 'bg-blue-600 text-white'
           : 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600'
@@ -134,15 +131,13 @@ export default function DashboardPage() {
           </header>
 
           <main className="w-full max-w-4xl mt-6">
-            {/* --- 메뉴 탭 --- */}
             <div className="flex gap-2 p-2 bg-slate-100 dark:bg-slate-900/50 rounded-xl mb-6">
               <NavButton view="schedule" label="스케줄" />
               <NavButton view="group" label="그룹 관리" />
               <NavButton view="findDate" label="날짜 찾기" />
-              <NavButton view="ocr" label="사진 등록" />
+              <NavButton view="ocr" label="OCR 등록" />
             </div>
 
-            {/* --- 선택된 뷰를 렌더링하고 애니메이션 적용 --- */}
             <div 
               key={activeView} 
               className="w-full bg-white dark:bg-slate-800/50 p-6 md:p-8 rounded-xl shadow-lg border dark:border-slate-700 animate-fadeInUp"

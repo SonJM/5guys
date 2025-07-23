@@ -1,14 +1,13 @@
+// src/components/InviteMemberForm.tsx
 'use client';
 
 import { inviteUserAction } from '@/app/actions';
 import { createClient } from '@/utils/supabase/client';
 import { useEffect, useState } from 'react';
 
-// 사용자 프로필의 타입을 정의합니다.
 type Profile = {
   id: string;
   username: string | null;
-  // email은 이제 보여주기용으로만 사용합니다.
   email: string | null;
 }
 
@@ -17,7 +16,6 @@ export default function InviteMemberForm({ groupId }: { groupId: number | null }
   const [selectedUserId, setSelectedUserId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // 컴포넌트가 로드될 때 전체 사용자 목록을 불러옵니다.
   useEffect(() => {
     const fetchUsers = async () => {
       const supabase = createClient();
@@ -51,7 +49,8 @@ export default function InviteMemberForm({ groupId }: { groupId: number | null }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mt-4 flex items-center gap-2">
+    // flex-col sm:flex-row 로 반응형 레이아웃 적용
+    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-stretch gap-2">
       <select
         value={selectedUserId}
         onChange={(e) => setSelectedUserId(e.target.value)}
@@ -68,7 +67,7 @@ export default function InviteMemberForm({ groupId }: { groupId: number | null }
       <button
         type="submit"
         disabled={!groupId || isLoading}
-        className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 disabled:bg-slate-400"
+        className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 disabled:bg-slate-400 whitespace-nowrap"
       >
         초대
       </button>
