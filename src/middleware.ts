@@ -17,34 +17,43 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options })
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          })
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           })
-          response.cookies.set({ name, value, ...options })
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
         },
         remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options })
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           })
-          response.cookies.delete(name)
+          response.cookies.delete({
+            name,
+            ...options,
+          })
         },
       },
     }
   )
 
-  // 미들웨어의 가장 중요한 역할: 사용자의 세션 정보를 최신 상태로 유지합니다.
-  const { data: { user } } = await supabase.auth.getUser()
-
-  // 사용자가 로그인하지 않았고, 접근하려는 경로가 보호된 경로일 경우 로그인 페이지로 리디렉션합니다.
-  if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
+  await supabase.auth.getUser()
 
   return response
 }
@@ -52,13 +61,12 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * 아래 경로들에 대해서만 미들웨어를 실행합니다.
-     * - api (API routes)
-     * - dashboard (보호된 경로)
-     * - account (보호된 경로)
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * Feel free to modify this pattern to include more paths.
      */
     '/((?!_next/static|_next/image|favicon.ico).*)',
-    '/dashboard/:path*',
-    '/account/:path*',
   ],
 }
