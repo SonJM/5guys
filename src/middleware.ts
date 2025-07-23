@@ -36,13 +36,20 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // 보호된 경로 목록
-  const protectedPaths = ['/dashboard', '/account']
+  const { pathname } = request.nextUrl
 
-  // 사용자가 없고, 접근하려는 경로가 보호된 경로 중 하나일 경우
-  if (!user && protectedPaths.includes(request.nextUrl.pathname)) {
-    // 로그인 페이지로 리디렉션합니다.
+  // 보호된 경로와 공개 경로 정의
+  const protectedPaths = ['/dashboard', '/account']
+  const publicPaths = ['/', '/login']
+
+  // 시나리오 1: 로그인하지 않은 사용자가 보호된 경로에 접근 시도
+  if (!user && protectedPaths.includes(pathname)) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // 시나리오 2: 이미 로그인한 사용자가 공개 경로에 접근 시도
+  if (user && publicPaths.includes(pathname)) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return response
