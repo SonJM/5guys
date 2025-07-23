@@ -23,7 +23,7 @@ export default function LoginPage() {
             appearance={{ theme: ThemeSupa }}
             theme="dark"
             providers={['github']}
-            redirectTo={`${location.origin}/auth/callback`}
+            redirectTo={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/callback`}
           />
         </div>
       </div>
