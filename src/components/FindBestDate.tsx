@@ -1,3 +1,4 @@
+// src/components/FindBestDate.tsx
 'use client'
 
 import { useState } from 'react'
@@ -56,29 +57,31 @@ export default function FindBestDate({ selectedGroupId }: { selectedGroupId: num
     <div className="mt-12 p-6 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50">
       <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200">🏖️ 최적의 여행 날짜 찾기</h3>
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div>
+      {/* flex-wrap 추가 및 input 너비 조정 */}
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-4">
+          <div className="w-full sm:w-auto">
             <label htmlFor="searchStart" className="block text-sm font-medium text-slate-600 dark:text-slate-400">검색 시작일</label>
             <input
               type="date"
               id="searchStart"
               value={searchStart}
               onChange={(e) => setSearchStart(e.target.value)}
-              className="mt-1 p-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
+              className="mt-1 w-full p-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
             />
           </div>
-          <div>
+          <div className="w-full sm:w-auto">
             <label htmlFor="searchEnd" className="block text-sm font-medium text-slate-600 dark:text-slate-400">검색 종료일</label>
             <input
               type="date"
               id="searchEnd"
               value={searchEnd}
               onChange={(e) => setSearchEnd(e.target.value)}
-              className="mt-1 p-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
+              className="mt-1 w-full p-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
             />
           </div>
         </div>
-        <div className="flex items-end gap-4">
+        {/* flex-wrap 추가 및 button 너비 조정 */}
+        <div className="flex flex-wrap items-end gap-4">
           <div>
             <label htmlFor="duration" className="block text-sm font-medium text-slate-600 dark:text-slate-400">여행 기간 (일)</label>
             <input
@@ -87,13 +90,13 @@ export default function FindBestDate({ selectedGroupId }: { selectedGroupId: num
               value={duration}
               onChange={(e) => setDuration(Number(e.target.value))}
               min="1"
-              className="mt-1 p-2 w-20 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
+              className="mt-1 p-2 w-24 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
             />
           </div>
           <button 
             type="submit" 
-            disabled={isLoading || !selectedGroupId} // 그룹 미선택 시 비활성화 로직 추가
-            className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-600"
+            disabled={isLoading || !selectedGroupId}
+            className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 flex-grow sm:flex-grow-0"
           >
             {isLoading ? '계산 중...' : '찾기'}
           </button>
@@ -109,7 +112,7 @@ export default function FindBestDate({ selectedGroupId }: { selectedGroupId: num
 
       {results.length > 0 && (
         <div className="mt-6">
-          {/* ... (결과 헤더 부분은 이전과 동일) ... */}
+          <h4 className="font-semibold dark:text-slate-100">추천 여행 날짜:</h4>
           <div className="mt-4 flex flex-col gap-4">
             {results.map((result, index) => (
               <div key={index} className="bg-white dark:bg-slate-800 p-4 border border-blue-200 dark:border-slate-700 rounded-lg shadow">
@@ -117,7 +120,6 @@ export default function FindBestDate({ selectedGroupId }: { selectedGroupId: num
                   🗓️ 추천 {index + 1}: {result.startDate} ~ {result.endDate}
                 </p>
 
-                {/* --- 구글 캘린더 추가 버튼 --- */}
                 <AddToGoogleCalendar 
                   startDate={result.startDate}
                   endDate={result.endDate}

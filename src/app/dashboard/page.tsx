@@ -1,3 +1,4 @@
+// src/app/dashboard/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -67,6 +68,7 @@ export default function DashboardPage() {
               <SignOutButton />
             </div>
           </div>
+          {/* w-full 추가 및 mt-12 sm:mt-16으로 수정 */}
           <div className="w-full max-w-4xl bg-white dark:bg-slate-800/50 dark:backdrop-blur-sm p-6 md:p-8 mt-12 sm:mt-16 rounded-xl shadow-lg border dark:border-slate-700">
             <GroupManager 
               user={user} 

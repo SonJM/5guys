@@ -1,3 +1,4 @@
+/* src/app/globals.css */
 @import "tailwindcss";
 
 :root {
@@ -58,4 +59,19 @@ body {
 /* 모든 근무일의 글자를 굵게 처리 */
 .rdp-day_workA, .rdp-day_workB, .rdp-day_workC {
     font-weight: bold;
+}
+
+/* --- 추가된 반응형 스타일 --- */
+.rdp {
+  --rdp-cell-size: 40px; /* 기본 셀 크기 */
+}
+
+@media (max-width: 640px) {
+  .rdp {
+    --rdp-cell-size: 32px; /* 모바일에서 셀 크기 줄이기 */
+    font-size: 0.875rem; /* 모바일에서 폰트 크기 줄이기 */
+  }
+  .rdp-caption_label {
+    font-size: 1rem;
+  }
 }
