@@ -14,8 +14,6 @@ export const createClient = (cookieStore: ReadonlyRequestCookies) => {
           try {
             cookieStore.set({ name, value, ...options })
           } catch (error) {
-            // The `set` method was called from a Server Component.
-            // In this case, we cannot set cookies directly.
             console.warn('Cookie set failed:', error)
             throw new Error('Cookie set failed. This might be due to calling from a Server Component.')
           }
@@ -24,8 +22,6 @@ export const createClient = (cookieStore: ReadonlyRequestCookies) => {
           try {
             cookieStore.set({ name, value: '', ...options })
           } catch (error) {
-            // The `remove` method was called from a Server Component.
-            // In this case, we cannot remove cookies directly.
             console.warn('Cookie remove failed:', error)
             throw new Error('Cookie remove failed. This might be due to calling from a Server Component.')
           }

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createWorker } from 'tesseract.js'
 import { createClient } from '@/utils/supabase/client'
 
 // 분석된 스케줄의 타입을 정의합니다.
@@ -12,7 +11,6 @@ type ParsedSchedule = {
 
 export default function OcrUploader() {
   const [ocrResult, setOcrResult] = useState('')
-  const [progress, setProgress] = useState({ status: '대기 중', percentage: 0 })
   const [isLoading, setIsLoading] = useState(false)
   const [parsedSchedules, setParsedSchedules] = useState<ParsedSchedule[]>([])
   const [targetYear, setTargetYear] = useState(new Date().getFullYear())
@@ -25,21 +23,25 @@ export default function OcrUploader() {
     setIsLoading(true)
     setOcrResult('')
     setParsedSchedules([])
-    setProgress({ status: '워커 준비 중', percentage: 0 })
 
     try {
-      const worker = await createWorker('kor+eng', undefined, {
-        logger: m => {
-          setProgress({ status: m.status, percentage: m.progress * 100 })
-        }
-      });
-      const { data: { text } } = await worker.recognize(file)
-      setOcrResult(text)
-      setProgress({ status: '완료', percentage: 100 })
-      await worker.terminate()
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/ocr', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to process image')
+      }
+
+      const data = await response.json()
+      setOcrResult(data.ocrResult)
     } catch (error) {
       console.error(error)
-      setProgress({ status: '에러 발생', percentage: 0 })
+      alert('이미지 처리 중 오류가 발생했습니다.')
     } finally {
       setIsLoading(false)
     }
@@ -143,15 +145,9 @@ export default function OcrUploader() {
 
       {isLoading && (
         <div className="mt-4">
-          <p className="font-semibold text-blue-600 dark:text-blue-400 capitalize">
-            {progress.status}... ({Math.round(progress.percentage)}%)
+          <p className="font-semibold text-blue-600 dark:text-blue-400">
+            이미지를 분석하고 있습니다...
           </p>
-          <div className="w-full bg-slate-200 rounded-full h-2.5 dark:bg-slate-700 mt-1">
-            <div 
-              className="bg-blue-600 h-2.5 rounded-full" 
-              style={{ width: `${progress.percentage}%` }}
-            ></div>
-          </div>
         </div>
       )}
 
