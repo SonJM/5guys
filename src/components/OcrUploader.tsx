@@ -49,46 +49,44 @@ export default function OcrUploader() {
 
   // --- Shiftee 캘린더에 최적화된 새로운 분석 로직 ---
   const handleParseText = () => {
-    const lines = ocrResult.split('\n');
+    const lines = ocrResult.split(/\n|\s{2,}/).filter(line => line.trim() !== '');
     const schedules: ParsedSchedule[] = [];
-    
-    // 1. 연도와 월 자동 감지 시도
-    const yearMatch = ocrResult.match(/(\d{4})년/);
-    const monthMatch = ocrResult.match(/(\d{1,2})월/);
-    const currentYear = yearMatch ? parseInt(yearMatch[1], 10) : targetYear;
-    const currentMonth = monthMatch ? parseInt(monthMatch[1], 10) : targetMonth;
+    const year = targetYear;
+    const month = targetMonth;
 
-    // 2. 한 줄씩 순회하며 날짜와 근무를 매칭
-    for (let i = 0; i < lines.length - 1; i++) {
-      const currentLine = lines[i].trim();
-      const nextLine = lines[i + 1].trim();
+    let dateLineIndex = -1;
 
-      // 현재 줄이 주로 숫자로 이루어져 있는지 확인 (날짜 줄 후보)
-      if (/^[\d\s]+$/.test(currentLine) && (currentLine.match(/\d/g)?.length ?? 0) > 2) {
-        
-        // 다음 줄이 주로 대문자로 이루어져 있는지 확인 (근무 형태 줄 후보)
-        if (/^([A-Z]\s*)+$/.test(nextLine.replace(/\|/g, ''))) {
-          const days = currentLine.split(/\s+/).filter(d => d); // 숫자들
-          const statuses = nextLine.split(/\s+/).filter(s => s); // 근무 형태들
-
-          // 날짜와 근무 형태를 1:1로 매칭
-          for (let j = 0; j < Math.min(days.length, statuses.length); j++) {
-            const day = parseInt(days[j], 10);
-            const status = statuses[j].replace(/[^A-Z]/g, ''); // 특수문자 제거
-
-            if (day > 0 && day <= 31 && status) {
-              const date = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              
-              // status를 '근무' 또는 다른 값으로 변환 (필요 시 수정)
-              const workStatus = (status === 'A' || status === 'B' || status === 'C' || status === 'D') ? '근무' : '휴무';
-              schedules.push({ date, status: workStatus });
-            }
-          }
+    // "DATE" 또는 "일"을 포함하는 줄을 찾아 날짜 줄로 설정
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes('DATE') || lines[i].includes('일')) {
+            dateLineIndex = i;
+            break;
         }
-      }
     }
+
+    if (dateLineIndex !== -1) {
+        const dateLine = lines[dateLineIndex].replace(/DATE|일|월|화|수|목|금|토/g, '').trim();
+        const dates = dateLine.split(/\s+/).filter(d => d && !isNaN(parseInt(d, 10)));
+
+        for (let i = dateLineIndex + 1; i < lines.length; i++) {
+            const line = lines[i];
+            if (line.includes('조')) {
+                const statuses = line.replace(/[가-힣]|조/g, '').trim().split(/\s+/).filter(s => s);
+                for (let j = 0; j < Math.min(dates.length, statuses.length); j++) {
+                    const day = parseInt(dates[j], 10);
+                    if (day > 0 && day <= 31) {
+                        const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        const status = statuses[j].replace(/[^A-Z]/g, '');
+                        const workStatus = (status === 'A' || status === 'B' || status === 'C' || status === 'D') ? '근무' : '휴무';
+                        schedules.push({ date, status: workStatus });
+                    }
+                }
+            }
+        }
+    }
+
     setParsedSchedules(schedules);
-  };
+};
   
   const handleSaveSchedules = async () => {
     if (parsedSchedules.length === 0) return;
