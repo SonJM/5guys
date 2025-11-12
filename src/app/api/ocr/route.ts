@@ -1,6 +1,5 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { ImageAnnotatorClient } from '@google-cloud/vision';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,25 +10,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // 인증 정보 설정
-    const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || '{}');
-    const client = new ImageAnnotatorClient({ credentials });
+    // 딥시크 API로 보낼 새로운 FormData 생성
+    const deepSeekFormData = new FormData();
+    deepSeekFormData.append('file', file);
+    
+    // 딥시크 API 엔드포인트 URL
+    const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/ocr';
+    // 딥시크 API 키 (환경 변수에서 가져오기)
+    const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
-    const buffer = await file.arrayBuffer();
-    const image = Buffer.from(buffer).toString('base64');
+    if (!DEEPSEEK_API_KEY) {
+      throw new Error('DEEPSEEK_API_KEY가 환경 변수에 설정되지 않았습니다.');
+    }
 
-    const [result] = await client.textDetection({
-      image: {
-        content: image,
+    // 딥시크 API 호출
+    const response = await fetch(DEEPSEEK_API_URL, {
+      method: 'POST',
+      headers: {
+        // 'multipart/form-data' 헤더는 fetch가 FormData와 함께 자동으로 설정합니다.
+        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
       },
+      body: deepSeekFormData,
     });
 
-    const detections = result.textAnnotations;
-    const ocrResult = detections?.[0]?.description || '';
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`DeepSeek API 오류: ${response.statusText} - ${errorText}`);
+    }
 
+    const result = await response.json();
+
+    // 딥시크 API의 실제 응답 구조에 따라 텍스트 필드를 추출해야 합니다.
+    // (예: result.text 또는 result.data.text 등 - 딥시크 문서를 확인하세요)
+    const ocrResult = result.text || ''; // 이 부분은 딥시크 응답 형식에 맞춰야 합니다.
+
+    // 프론트엔드가 기대하는 { ocrResult: "..." } 형식으로 반환
     return NextResponse.json({ ocrResult });
+
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: 'Failed to process image' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Failed to process image';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
