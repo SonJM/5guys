@@ -203,8 +203,7 @@ export async function updateUsernameAction(username: string) {
 
   const { error } = await supabase
     .from('profiles')
-    .update({ username: username })
-    .eq('id', user.id);
+    .upsert({ id: user.id, username, email: user.email });
 
   if (error) return { error: '이름 업데이트에 실패했습니다.' };
 

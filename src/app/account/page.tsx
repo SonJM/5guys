@@ -56,6 +56,14 @@ export default function AccountPage() {
         <div className="w-full bg-white dark:bg-slate-800 p-8 mt-4 rounded-xl shadow-lg border dark:border-slate-700">
           <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">계정 설정</h1>
           <p className="mt-4 text-slate-600 dark:text-slate-300">이메일: {user?.email}</p>
+          <div className="mt-4">
+            <Link
+              href="/settings/work-pattern"
+              className="inline-block px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700"
+            >
+              근무 패턴 설정
+            </Link>
+          </div>
           
           <form onSubmit={handleUpdateUsername} className="mt-6">
             <div>

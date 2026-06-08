@@ -4,13 +4,9 @@
 import { useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/client'
+import type { Group } from '@/types'
 import CreateGroupForm from './CreateGroupForm'
-import InviteMemberForm from './InviteMemberForm';
-
-type Group = {
-  id: number
-  name: string
-}
+import InviteMemberForm from './InviteMemberForm'
 
 type GroupManagerProps = {
   user: User
@@ -22,39 +18,41 @@ export default function GroupManager({ user, selectedGroupId, setSelectedGroupId
   const supabase = createClient()
   const [groups, setGroups] = useState<Group[]>([])
 
-  useEffect(() => {
-    const fetchGroups = async () => {
-      const { data } = await supabase
-        .from('groups')
-        .select('id, name')
-        .in('id', 
-          (await supabase.from('group_members').select('group_id').eq('user_id', user.id)).data?.map(g => g.group_id) || []
-        )
-      
-      if (data) {
-        setGroups(data)
-        if (data.length > 0 && !selectedGroupId) {
-          setSelectedGroupId(data[0].id)
-        }
-      }
-    }
-    
-    fetchGroups()
-  }, [user, supabase, selectedGroupId, setSelectedGroupId])
+  const fetchGroups = async () => {
+    const { data } = await supabase
+      .from('group_members')
+      .select('groups(id, name)')
+      .eq('user_id', user.id)
 
+    const fetched = ((data ?? [])
+      .map(row => (row as unknown as { groups: Group | null }).groups)
+      .filter(Boolean) as Group[])
+    setGroups(fetched)
+    if (fetched.length > 0 && !selectedGroupId) {
+      setSelectedGroupId(fetched[0].id)
+    }
+  }
+
+  useEffect(() => {
+    fetchGroups()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id])
+
+  const handleGroupCreated = () => {
+    fetchGroups()
+  }
 
   return (
-    // p-0로 변경하여 부모 컴포넌트의 패딩을 사용하도록 함
     <div className="space-y-6">
       <div>
         <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">새 그룹 만들기</h4>
-        <CreateGroupForm />
+        <CreateGroupForm onGroupCreated={handleGroupCreated} />
       </div>
-      
+
       {groups.length > 0 && (
         <div>
           <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">그룹 선택</h4>
-          <select 
+          <select
             value={selectedGroupId || ''}
             onChange={(e) => setSelectedGroupId(Number(e.target.value))}
             className="w-full p-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"

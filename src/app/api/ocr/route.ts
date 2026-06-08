@@ -40,9 +40,7 @@ export async function POST(req: NextRequest) {
 
     const result = await response.json();
 
-    // 딥시크 API의 실제 응답 구조에 따라 텍스트 필드를 추출해야 합니다.
-    // (예: result.text 또는 result.data.text 등 - 딥시크 문서를 확인하세요)
-    const ocrResult = result.text || ''; // 이 부분은 딥시크 응답 형식에 맞춰야 합니다.
+    const ocrResult = result.choices?.[0]?.message?.content || result.text || '';
 
     // 프론트엔드가 기대하는 { ocrResult: "..." } 형식으로 반환
     return NextResponse.json({ ocrResult });
