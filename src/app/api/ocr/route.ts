@@ -1,53 +1,75 @@
-
-import { NextRequest, NextResponse } from 'next/server';
-
+import { NextRequest, NextResponse } from "next/server";
+import { apiError, limited, session } from "@/lib/server";
+export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
-
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-    }
-
-    // 딥시크 API로 보낼 새로운 FormData 생성
-    const deepSeekFormData = new FormData();
-    deepSeekFormData.append('file', file);
-    
-    // 딥시크 API 엔드포인트 URL
-    const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/ocr';
-    // 딥시크 API 키 (환경 변수에서 가져오기)
-    const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-
-    if (!DEEPSEEK_API_KEY) {
-      throw new Error('DEEPSEEK_API_KEY가 환경 변수에 설정되지 않았습니다.');
-    }
-
-    // 딥시크 API 호출
-    const response = await fetch(DEEPSEEK_API_URL, {
-      method: 'POST',
-      headers: {
-        // 'multipart/form-data' 헤더는 fetch가 FormData와 함께 자동으로 설정합니다.
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+    const { db } = await session();
+    await limited(db, "ocr", 20);
+    if (Number(req.headers.get("content-length") ?? 0) > 4500000)
+      throw new Error("이미지는 4MB 이하로 올려주세요.");
+    const data = await req.formData();
+    const file = data.get("file");
+    if (
+      !(file instanceof File) ||
+      file.size > 4000000 ||
+      !["image/png", "image/jpeg", "image/webp"].includes(file.type)
+    )
+      throw new Error("4MB 이하의 PNG, JPEG, WebP 이미지를 선택해주세요.");
+    const key = process.env.GOOGLE_VISION_API_KEY;
+    if (!key)
+      return NextResponse.json(
+        {
+          error:
+            "이미지 인식 연결이 아직 준비되지 않았습니다. 아래에 날짜와 근무 표기를 직접 입력해 분석할 수 있습니다.",
+        },
+        { status: 503 },
+      );
+    const response = await fetch(
+      `https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(key)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(40000),
+        body: JSON.stringify({
+          requests: [
+            {
+              image: {
+                content: Buffer.from(await file.arrayBuffer()).toString(
+                  "base64",
+                ),
+              },
+              features: [{ type: "DOCUMENT_TEXT_DETECTION" }],
+              imageContext: { languageHints: ["ko", "en"] },
+            },
+          ],
+        }),
       },
-      body: deepSeekFormData,
+    );
+    if (!response.ok)
+      throw new Error(
+        "이미지 인식 서비스 호출에 실패했습니다. 잠시 후 다시 시도해주세요.",
+      );
+    const result = (await response.json()).responses?.[0];
+    if (result?.error)
+      throw new Error(
+        "이미지를 인식하지 못했습니다. 달력 영역과 해상도를 확인해주세요.",
+      );
+    const words = (result?.textAnnotations ?? [])
+      .slice(1)
+      .map(
+        (word: {
+          description: string;
+          boundingPoly?: { vertices?: { x?: number; y?: number }[] };
+        }) => ({
+          text: word.description,
+          vertices: word.boundingPoly?.vertices,
+        }),
+      );
+    return NextResponse.json({
+      ocrResult: result?.fullTextAnnotation?.text ?? "",
+      layout: words.slice(0, 1500),
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`DeepSeek API 오류: ${response.statusText} - ${errorText}`);
-    }
-
-    const result = await response.json();
-
-    const ocrResult = result.choices?.[0]?.message?.content || result.text || '';
-
-    // 프론트엔드가 기대하는 { ocrResult: "..." } 형식으로 반환
-    return NextResponse.json({ ocrResult });
-
-  } catch (error) {
-    console.error(error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to process image';
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  } catch (e) {
+    return apiError(e);
   }
 }

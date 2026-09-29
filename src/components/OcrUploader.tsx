@@ -1,228 +1,339 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
-import { Toast } from './Toast'
-import type { ToastState } from './Toast'
-import type { WorkPattern } from '@/types'
-import Link from 'next/link'
-
-type ParsedSchedule = {
-  date: string
-  status: string
-}
-
+"use client";
+import { useEffect, useRef, useState } from "react";
+import { loadPlanner, saveEvents } from "@/app/planner-actions";
+import { dayString, shiftTimes, type ShiftPattern } from "@/lib/planner";
+type Row = {
+  date: string;
+  label: string;
+  patternId: string;
+  confirmed: boolean;
+  confidence: number;
+};
 export default function OcrUploader() {
-  const [ocrResult, setOcrResult] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [parsedSchedules, setParsedSchedules] = useState<ParsedSchedule[]>([])
-  const [targetYear, setTargetYear] = useState(new Date().getFullYear())
-  const [targetMonth, setTargetMonth] = useState(new Date().getMonth() + 1)
-  const [workPatterns, setWorkPatterns] = useState<WorkPattern[]>([])
-  const [toast, setToast] = useState<ToastState>(null)
-
+  const [image, setImage] = useState("");
+  const img = useRef<HTMLImageElement>(null);
+  const [crop, setCrop] = useState({
+    top: 0,
+    bottom: 100,
+    left: 0,
+    right: 100,
+  });
+  const [text, setText] = useState("");
+  const [layout, setLayout] = useState<unknown[]>([]);
+  const [month, setMonth] = useState(dayString().slice(0, 7));
+  const [person, setPerson] = useState("");
+  const [patterns, setPatterns] = useState<ShiftPattern[]>([]);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
-    const loadWorkPatterns = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data } = await supabase
-        .from('work_patterns')
-        .select('*')
-        .eq('user_id', user.id)
-      if (data) setWorkPatterns(data as WorkPattern[])
-    }
-    loadWorkPatterns()
-  }, [])
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    setIsLoading(true)
-    setOcrResult('')
-    setParsedSchedules([])
-
+    loadPlanner(dayString(), dayString())
+      .then((d) => setPatterns(d.patterns))
+      .catch((e) => setMessage(e.message));
+  }, []);
+  useEffect(
+    () => () => {
+      if (image) URL.revokeObjectURL(image);
+    },
+    [image],
+  );
+  async function request(url: string, body: BodyInit, json = false) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: json ? { "Content-Type": "application/json" } : undefined,
+      body,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error ?? "요청에 실패했습니다.");
+    return data;
+  }
+  async function run(task: () => Promise<void>) {
+    setBusy(true);
+    setMessage("");
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const response = await fetch('/api/ocr', { method: 'POST', body: formData })
-      if (!response.ok) throw new Error('이미지 처리에 실패했습니다.')
-
-      const data = await response.json()
-      if (data.error) throw new Error(data.error)
-      setOcrResult(data.ocrResult)
-    } catch (error) {
-      setToast({ message: error instanceof Error ? error.message : '이미지 처리 중 오류가 발생했습니다.', type: 'error' })
+      await task();
+    } catch (e) {
+      setMessage((e as Error).message);
     } finally {
-      setIsLoading(false)
+      setBusy(false);
     }
   }
-
-  const handleAnalyze = async () => {
-    if (!ocrResult) return
-    setIsAnalyzing(true)
-    setParsedSchedules([])
-
-    try {
-      const workPatternMap = workPatterns.map(p => ({
-        label: p.shift_name,
-        code: p.shift_code,
-        startTime: p.start_time,
-        endTime: p.end_time,
-      }))
-
-      const response = await fetch('/api/ocr/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ocrText: ocrResult, workPatternMap, year: targetYear, month: targetMonth }),
-      })
-
-      const data = await response.json()
-      if (!response.ok || data.error) throw new Error(data.error || '분석에 실패했습니다.')
-
-      setParsedSchedules(data.schedules)
-      if (data.schedules.length === 0) {
-        setToast({ message: '일정을 추출하지 못했습니다. OCR 텍스트를 확인해주세요.', type: 'info' })
-      }
-    } catch (error) {
-      setToast({ message: error instanceof Error ? error.message : '분석 중 오류가 발생했습니다.', type: 'error' })
-    } finally {
-      setIsAnalyzing(false)
-    }
+  async function recognize() {
+    if (!img.current || crop.right <= crop.left || crop.bottom <= crop.top)
+      throw new Error("달력 영역을 확인해주세요.");
+    setRows([]);
+    setText("");
+    setLayout([]);
+    const source = img.current;
+    const w = source.naturalWidth;
+    const h = source.naturalHeight;
+    const canvas = document.createElement("canvas");
+    const width = (w * (crop.right - crop.left)) / 100;
+    const height = (h * (crop.bottom - crop.top)) / 100;
+    const scale = Math.min(1, 2400 / Math.max(width, height));
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    canvas
+      .getContext("2d")!
+      .drawImage(
+        source,
+        (w * crop.left) / 100,
+        (h * crop.top) / 100,
+        width,
+        height,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/png"),
+    );
+    if (!blob) throw new Error("이미지를 처리하지 못했습니다.");
+    const form = new FormData();
+    form.append("file", blob, "calendar.png");
+    const data = await request("/api/ocr", form);
+    setText(data.ocrResult);
+    setLayout(data.layout);
   }
-
-  const handleSaveSchedules = async () => {
-    if (parsedSchedules.length === 0) return
-
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      setToast({ message: '로그인이 필요합니다.', type: 'error' })
-      return
-    }
-
-    const schedulesToSave = parsedSchedules.map(s => ({
-      user_id: user.id,
-      date: s.date,
-      status: s.status,
-    }))
-
-    const { error } = await supabase.from('schedules').upsert(schedulesToSave)
-
-    if (error) {
-      setToast({ message: '저장에 실패했습니다: ' + error.message, type: 'error' })
-    } else {
-      setToast({ message: `${schedulesToSave.length}개의 스케줄이 저장되었습니다.`, type: 'success' })
-      setOcrResult('')
-      setParsedSchedules([])
-    }
+  async function analyze() {
+    const [year, m] = month.split("-").map(Number);
+    const data = await request(
+      "/api/ocr/analyze",
+      JSON.stringify({ ocrText: text, layout, year, month: m, person }),
+      true,
+    );
+    setRows(data.rows);
+    setMessage(
+      data.warnings.join(" · ") ||
+        "날짜와 근무 유형을 확인한 항목만 선택해 저장해주세요.",
+    );
   }
-
+  async function save() {
+    const selected = rows.filter((r) => r.confirmed);
+    if (!selected.length) throw new Error("확인한 항목을 선택해주세요.");
+    const ids = new Set<string>();
+    const payload = selected.map((r) => {
+      if (ids.has(r.date)) throw new Error("중복 날짜를 확인해주세요.");
+      ids.add(r.date);
+      const p = patterns.find((p) => p.id === r.patternId);
+      if (!p) throw new Error(`${r.date}: 근무 유형을 선택해주세요.`);
+      return { p, date: r.date };
+    });
+    const existing = await loadPlanner(
+      `${month}-01`,
+      `${month}-${new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate()}`,
+    );
+    if (
+      payload.some(
+        ({ p, date }) =>
+          !p.is_off &&
+          existing.events.some(
+            (e) =>
+              e.kind === "work" && dayString(new Date(e.starts_at)) === date,
+          ),
+      )
+    )
+      throw new Error(
+        "선택한 날짜에 이미 근무가 있습니다. 기존 근무를 수정하거나 해당 날짜 선택을 해제해주세요.",
+      );
+    const working = payload
+      .filter(({ p }) => !p.is_off)
+      .map(({ p, date }) => ({
+        title: p.label,
+        kind: "work" as const,
+        source: "ocr" as const,
+        ...shiftTimes(date, p),
+      }));
+    if (working.length) await saveEvents(working);
+    setRows([]);
+    setMessage(
+      `${working.length}건의 근무를 등록했습니다. 휴무는 근무를 만들지 않습니다. 스케줄에서 누락된 약속을 확인한 뒤 가능 시간 공유를 켜주세요.`,
+    );
+  }
   return (
-    <div className="mt-4">
-      <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200">캘린더 사진으로 일정 등록</h3>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        사용하시는 캘린더 앱의 스크린샷을 업로드하여 일정을 인식할 수 있습니다.
+    <section className="space-y-4">
+      <h2 className="text-xl font-bold">근무표 사진으로 일정 만들기</h2>
+      <p className="text-sm text-slate-500">
+        달력과 연월만 남도록 영역을 조정하세요. 광고·하단 메뉴는 제외하고, 여러
+        사람의 표라면 본인 이름을 입력하세요.
       </p>
-
-      {workPatterns.length === 0 && (
-        <div className="mt-3 px-4 py-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg text-sm text-amber-800 dark:text-amber-200">
-          근무 패턴이 등록되지 않아 OCR 정확도가 낮을 수 있습니다.{' '}
-          <Link href="/settings/work-pattern" className="underline font-semibold">
-            패턴 등록하기 →
-          </Link>
-        </div>
+      <a href="/settings/work-pattern" className="text-blue-600">
+        나의 근무 표기·시간 설정 →
+      </a>
+      <input
+        aria-label="근무표 이미지"
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        disabled={busy}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          if (f.size > 15000000) {
+            setMessage("15MB 이하 이미지를 선택해주세요.");
+            return;
+          }
+          setImage(URL.createObjectURL(f));
+          setRows([]);
+          setText("");
+          setLayout([]);
+          setCrop({ top: 0, bottom: 100, left: 0, right: 100 });
+        }}
+      />
+      {image && (
+        <>
+          <div className="relative mx-auto max-w-md">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              ref={img}
+              src={image}
+              alt="근무표 영역 선택 미리보기"
+              className="w-full"
+            />
+            <div
+              className="pointer-events-none absolute border-4 border-emerald-400 bg-emerald-200/10"
+              style={{
+                top: `${crop.top}%`,
+                left: `${crop.left}%`,
+                right: `${100 - crop.right}%`,
+                bottom: `${100 - crop.bottom}%`,
+              }}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {(["top", "bottom", "left", "right"] as const).map((key, i) => (
+              <label key={key} className="text-sm">
+                {["상단", "하단", "왼쪽", "오른쪽"][i]} {crop[key]}%
+                <input
+                  className="w-full"
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={crop[key]}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setCrop({ ...crop, [key]: Number(e.target.value) })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <button
+            disabled={busy}
+            className="primary-button"
+            onClick={() => void run(recognize)}
+          >
+            선택한 영역 인식
+          </button>
+        </>
       )}
-
-      <div className="mt-4">
-        <label
-          htmlFor="ocr-upload"
-          className="cursor-pointer px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 disabled:bg-indigo-400"
-        >
-          이미지 파일 선택
-        </label>
+      <div className="planner-form">
         <input
-          id="ocr-upload"
-          type="file"
-          onChange={handleFileUpload}
-          accept="image/*"
-          className="hidden"
-          disabled={isLoading}
+          aria-label="근무표 연월"
+          type="month"
+          value={month}
+          disabled={busy}
+          onChange={(e) => {
+            setMonth(e.target.value);
+            setRows([]);
+          }}
+        />
+        <input
+          aria-label="근무표 본인 이름"
+          placeholder="여러 사람의 표: 본인 이름"
+          value={person}
+          disabled={busy}
+          onChange={(e) => {
+            setPerson(e.target.value);
+            setRows([]);
+          }}
         />
       </div>
-
-      {isLoading && (
-        <div className="mt-4">
-          <p className="font-semibold text-blue-600 dark:text-blue-400">이미지를 인식하고 있습니다...</p>
-        </div>
+      <textarea
+        aria-label="인식된 텍스트"
+        placeholder="인식 결과를 수정하거나 ‘2026-09-01 주간’처럼 직접 입력할 수 있습니다."
+        value={text}
+        disabled={busy}
+        onChange={(e) => {
+          setText(e.target.value);
+          setLayout([]);
+          setRows([]);
+        }}
+        className="h-32 w-full rounded border bg-transparent p-3"
+      />
+      <button
+        disabled={busy || !text.trim()}
+        className="primary-button"
+        onClick={() => void run(analyze)}
+      >
+        날짜별 근무 분석
+      </button>
+      {busy && <p role="status">처리 중입니다…</p>}
+      {message && (
+        <p
+          role="status"
+          className="rounded bg-blue-50 p-3 text-sm text-blue-900"
+        >
+          {message}
+        </p>
       )}
-
-      {ocrResult && (
-        <div className="mt-4">
-          <h4 className="font-semibold dark:text-slate-100">1단계: 인식된 텍스트 결과</h4>
-          <pre className="mt-2 p-4 bg-white dark:bg-slate-800 border dark:border-slate-600 rounded-md text-sm whitespace-pre-wrap font-sans max-h-48 overflow-y-auto">
-            {ocrResult}
-          </pre>
-
-          <div className="mt-4">
-            <h4 className="font-semibold dark:text-slate-100">2단계: 스케줄 분석</h4>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">연도와 월을 확인하고 AI 분석을 시작하세요.</p>
-            <div className="flex items-center gap-3 mt-2 flex-wrap">
+      {rows.length > 0 && (
+        <>
+          <p className="text-sm">
+            날짜별 결과를 확인하세요. 낮은 확신도와 미등록 기호는 반드시
+            수정해주세요.
+          </p>
+          {rows.map((row, i) => (
+            <div key={row.date} className="planner-form">
+              <input
+                aria-label={`${row.date} 확인`}
+                type="checkbox"
+                disabled={!row.patternId || busy}
+                checked={row.confirmed}
+                onChange={(e) =>
+                  setRows(
+                    rows.map((r, j) =>
+                      j === i ? { ...r, confirmed: e.target.checked } : r,
+                    ),
+                  )
+                }
+              />
+              <span>
+                {row.date} · {row.label}{" "}
+                {row.confidence < 0.85 ? "⚠ 확인 필요" : ""}
+              </span>
               <select
-                value={targetYear}
-                onChange={e => setTargetYear(Number(e.target.value))}
-                className="p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600"
+                aria-label={`${row.date} 근무 유형`}
+                value={row.patternId}
+                disabled={busy}
+                onChange={(e) =>
+                  setRows(
+                    rows.map((r, j) =>
+                      j === i
+                        ? { ...r, patternId: e.target.value, confirmed: false }
+                        : r,
+                    ),
+                  )
+                }
               >
-                <option>{new Date().getFullYear() - 1}</option>
-                <option>{new Date().getFullYear()}</option>
-                <option>{new Date().getFullYear() + 1}</option>
-              </select>
-              <select
-                value={targetMonth}
-                onChange={e => setTargetMonth(Number(e.target.value))}
-                className="p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600"
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                  <option key={m} value={m}>{m}월</option>
+                <option value="">근무 유형 선택</option>
+                {patterns.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
                 ))}
               </select>
-              <button
-                onClick={handleAnalyze}
-                disabled={isAnalyzing}
-                className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-slate-400"
-              >
-                {isAnalyzing ? 'AI 분석 중...' : 'AI 분석'}
-              </button>
             </div>
-
-            {parsedSchedules.length > 0 && (
-              <div className="mt-4">
-                <h5 className="font-semibold dark:text-slate-100">분석 결과 ({parsedSchedules.length}개):</h5>
-                <ul className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-1 text-sm text-slate-700 dark:text-slate-300 max-h-48 overflow-y-auto">
-                  {parsedSchedules.map(s => (
-                    <li key={s.date} className="flex items-center gap-1">
-                      <span className="text-slate-500">{s.date}</span>
-                      <span className="font-semibold">{s.status}</span>
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  onClick={handleSaveSchedules}
-                  className="mt-4 px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg shadow-md hover:bg-indigo-700"
-                >
-                  이 스케줄 저장하기
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+          ))}
+          <button
+            disabled={busy}
+            className="primary-button"
+            onClick={() => void run(save)}
+          >
+            확인한 일정 등록
+          </button>
+        </>
       )}
-
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-    </div>
-  )
+    </section>
+  );
 }

@@ -9,6 +9,11 @@ export default function SignOutButton() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
+    if ('caches' in window) {
+      const keys = await caches.keys()
+      await Promise.all(keys.map(key => caches.delete(key)))
+    }
+    router.replace('/login')
     router.refresh()
   }
 

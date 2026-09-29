@@ -6,15 +6,17 @@ import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
 import SignOutButton from '@/components/SignOutButton'
-import ScheduleCalendar from '@/components/ScheduleCalendar'
-import FindBestDate from '@/components/FindBestDate'
+import TimePlanner from '@/components/TimePlanner'
+import GroupAvailability from '@/components/GroupAvailability'
+import GoogleCalendarConnection from '@/components/GoogleCalendarConnection'
+import PlaceRecommendations from '@/components/PlaceRecommendations'
 import { ThemeSwitcher } from '@/components/ThemeSwitcher'
 import OcrUploader from '@/components/OcrUploader'
 import GroupManager from '@/components/GroupManager'
 import UsernameSetupModal from '@/components/UsernameSetupModal'
 import type { Profile } from '@/types'
 
-type View = 'schedule' | 'group' | 'findDate' | 'ocr'
+type View = 'schedule' | 'group' | 'findDate' | 'ocr' | 'places'
 
 export default function DashboardPage() {
   const supabase = createClient()
@@ -33,10 +35,12 @@ export default function DashboardPage() {
           setUser(user)
           const [{ data: userProfile }, { count }] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', user.id).single(),
-            supabase.from('work_patterns').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+            supabase.from('planner_patterns').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
           ])
           setProfile(userProfile)
           setHasWorkPatterns((count ?? 0) > 0)
+          const { data: membership } = await supabase.from('group_members').select('group_id').eq('user_id', user.id).order('group_id').limit(1)
+          setSelectedGroupId(membership?.[0]?.group_id ?? null)
         }
       } catch (e) {
         console.error('Error checking user:', e)
@@ -65,8 +69,8 @@ export default function DashboardPage() {
         return (
           <>
             <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 dark:text-slate-100">🗓️ 스케줄 관리</h1>
-            <p className="mt-2 text-slate-500 dark:text-slate-400">달력에서 날짜를 클릭하여 근무 일정을 등록하세요.</p>
-            <ScheduleCalendar user={user!} selectedGroupId={selectedGroupId} />
+            <p className="my-4 text-slate-500 dark:text-slate-400">근무와 약속을 시간 단위로 관리하세요.</p>
+            <TimePlanner />
           </>
         )
       case 'group':
@@ -84,7 +88,9 @@ export default function DashboardPage() {
           </>
         )
       case 'findDate':
-        return <FindBestDate selectedGroupId={selectedGroupId} />
+        return <GroupAvailability groupId={selectedGroupId} />
+      case 'places':
+        return <PlaceRecommendations />
       case 'ocr':
         return <OcrUploader />
       default:
@@ -148,11 +154,13 @@ export default function DashboardPage() {
           )}
 
           <main className="w-full max-w-4xl mt-6">
+            <GoogleCalendarConnection />
             <div className="flex gap-2 p-2 bg-slate-100 dark:bg-slate-900/50 rounded-xl mb-6">
               <NavButton view="schedule" label="스케줄" />
               <NavButton view="group" label="그룹 관리" />
               <NavButton view="findDate" label="날짜 찾기" />
               <NavButton view="ocr" label="OCR 등록" />
+              <NavButton view="places" label="장소 추천" />
             </div>
 
             <div

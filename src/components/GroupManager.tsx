@@ -68,6 +68,7 @@ export default function GroupManager({ user, selectedGroupId, setSelectedGroupId
 
       <div>
         <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">멤버 초대하기</h4>
+        <p className="mb-2 text-sm text-slate-500">그룹 생성자만 기존 사용자를 추가할 수 있습니다. 일정 제목과 근무 종류는 공유되지 않습니다.</p>
         <InviteMemberForm groupId={selectedGroupId} />
       </div>
     </div>

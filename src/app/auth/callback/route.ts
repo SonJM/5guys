@@ -5,7 +5,8 @@ import { cookies } from 'next/headers'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  const requested = searchParams.get('next') ?? '/dashboard'
+  const next = requested.startsWith('/') && !requested.startsWith('//') && !requested.includes('\\') ? requested : '/dashboard'
 
   if (code) {
     const cookieStore = await cookies()
@@ -16,5 +17,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/auth/auth-error`)
+  return NextResponse.redirect(`${origin}/login?error=auth`)
 }

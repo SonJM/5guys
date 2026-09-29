@@ -102,3 +102,11 @@ body {
     font-size: 0.7rem; /* 더 작은 화면에서 폰트 크기 추가 줄임 */
   }
 }
+/* Shared accessible controls for the time-based planner. */
+.planner-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+.planner-form h3 { width: 100%; }
+.planner-form input:not([type=checkbox]), .planner-form select, input[type=date] { padding: .5rem; border: 1px solid #94a3b8; border-radius: .5rem; background: transparent; max-width: 100%; }
+.planner-form input[type=number] { width: 5rem; }
+.planner-form label { font-size: .875rem; }
+.primary-button { background: #2563eb; color: white; padding: .5rem 1rem; border-radius: .5rem; }
+button:disabled { opacity: .5; cursor: not-allowed; }

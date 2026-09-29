@@ -84,7 +84,7 @@ export default function ScheduleCalendar({ user, selectedGroupId }: ScheduleCale
     }
 
     fetchSchedules()
-  }, [selectedGroupId])
+  }, [selectedGroupId, supabase])
 
   const handleSaveSchedule = async (status: ScheduleStatus | '삭제', eventTitle?: string) => {
     const targetDay = selectedDay ?? currentDate

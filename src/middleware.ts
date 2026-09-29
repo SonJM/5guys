@@ -33,7 +33,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // 보호된 경로: 로그인하지 않은 사용자는 로그인 페이지로 리디렉션
-  if (!user && (pathname.startsWith('/dashboard') || pathname.startsWith('/account'))) {
+  if (!user && (pathname.startsWith('/dashboard') || pathname.startsWith('/account') || pathname.startsWith('/settings'))) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 

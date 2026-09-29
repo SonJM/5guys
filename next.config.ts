@@ -7,6 +7,9 @@ import withPWAInit from "@ducanh2912/next-pwa";
 const withPWA = withPWAInit({
   dest: "public",
   register: true,
+  cacheStartUrl: false,
+  cacheOnFrontEndNav: false,
+  workboxOptions: { runtimeCaching: [], cleanupOutdatedCaches: true },
   disable: process.env.NODE_ENV === "development",
 });
 
