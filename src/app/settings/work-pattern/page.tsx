@@ -40,25 +40,27 @@ export default function WorkPatternPage() {
     }
   }
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
-      <Link href="/dashboard">← 대시보드</Link>
-      <h1 className="text-2xl font-bold">나의 근무 표기와 시간</h1>
-      <p>
+    <main className="app-shell min-h-screen px-5 py-8 sm:px-8"><div className="mx-auto max-w-3xl space-y-6">
+      <Link href="/dashboard" className="brand-link text-sm">← 대시보드로 돌아가기</Link>
+      <div><p className="eyebrow">WORK PATTERNS</p><h1 className="mt-2 text-3xl font-black tracking-tight">나의 근무 표기와 시간</h1></div>
+      <p className="muted text-sm leading-6">
         회사에서 사용하는 이름과 OCR 별칭을 등록하세요. 야간근무는 다음 날
         종료를 선택합니다. 휴무는 근무 일정을 생성하지 않습니다.
       </p>
       {message && (
-        <p role="status" className="rounded bg-blue-50 p-3 text-blue-900">
+        <p role="status" className="status-note">
           {message}
         </p>
       )}
       <div className="space-y-2">
+        <h2 className="text-lg font-extrabold">등록된 근무 유형 <span className="text-[var(--brand)]">{patterns.length}</span></h2>
+        {patterns.length === 0 && <p className="empty-state text-sm">아직 등록된 근무 유형이 없어요.<span>주간·야간·휴무 등 사용하는 표기부터 추가해 보세요.</span></p>}
         {patterns.map((p) => (
           <div
             key={p.id}
-            className="flex items-center justify-between rounded border p-3"
+            className="soft-card flex flex-wrap items-center justify-between gap-3 p-4"
           >
-            <button
+            <button className="text-left font-semibold"
               onClick={() => {
                 setDraft(p);
                 setAliases(p.aliases.join(","));
@@ -70,7 +72,7 @@ export default function WorkPatternPage() {
                 : `${p.start_time.slice(0, 5)}–${p.end_time.slice(0, 5)}${p.end_day_offset ? " (+1일)" : ""}`}{" "}
               · {p.aliases.join(", ")}
             </button>
-            <button
+            <button className="ghost-button !text-[#a54036]"
               disabled={busy}
               onClick={() => {
                 if (
@@ -85,7 +87,7 @@ export default function WorkPatternPage() {
         ))}
       </div>
       <form
-        className="planner-form"
+        className="planner-form surface-card p-5 sm:p-7"
         onSubmit={(e) => {
           e.preventDefault();
           void perform(() =>
@@ -99,7 +101,7 @@ export default function WorkPatternPage() {
           );
         }}
       >
-        <h2 className="w-full font-bold">
+        <h2 className="w-full text-lg font-extrabold">
           {draft.id ? "근무 유형 수정" : "근무 유형 추가"}
         </h2>
         <input
@@ -164,6 +166,7 @@ export default function WorkPatternPage() {
         {draft.id && (
           <button
             type="button"
+            className="secondary-button"
             onClick={() => {
               setDraft(blank);
               setAliases("");
@@ -173,6 +176,6 @@ export default function WorkPatternPage() {
           </button>
         )}
       </form>
-    </main>
+    </div></main>
   );
 }

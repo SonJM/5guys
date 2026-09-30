@@ -15,15 +15,15 @@ export function Toast({ message, type, onClose }: ToastProps) {
   }, [onClose])
 
   const colorClass = {
-    success: 'bg-green-600',
-    error: 'bg-red-600',
-    info: 'bg-blue-600',
+    success: 'bg-[#176b60]',
+    error: 'bg-[#a54036]',
+    info: 'bg-[#356d82]',
   }[type]
 
   return (
-    <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-lg text-white shadow-lg ${colorClass} animate-fadeInUp`}>
+    <div role={type === 'error' ? 'alert' : 'status'} className={`fixed bottom-6 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-xl px-5 py-3 text-white shadow-lg ${colorClass}`}>
       <span className="text-sm font-medium">{message}</span>
-      <button onClick={onClose} className="text-white/80 hover:text-white text-lg leading-none">&times;</button>
+      <button aria-label="알림 닫기" onClick={onClose} className="ml-auto text-lg leading-none text-white/80 hover:text-white">&times;</button>
     </div>
   )
 }

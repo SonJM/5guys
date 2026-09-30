@@ -164,15 +164,17 @@ export default function TimePlanner() {
   }
   return (
     <section className="space-y-5">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[var(--surface-soft)] p-3 sm:p-4">
+        <div className="flex items-center gap-2">
         <button
+          type="button"
+          aria-label="이전 날짜"
+          className="secondary-button !min-h-10 !px-3"
           onClick={() => {
             setDay(addDays(day, -1));
             setId(undefined);
           }}
-        >
-          ←
-        </button>
+        >←</button>
         <input
           aria-label="조회 날짜"
           type="date"
@@ -184,26 +186,26 @@ export default function TimePlanner() {
           }}
         />
         <button
+          type="button"
+          aria-label="다음 날짜"
+          className="secondary-button !min-h-10 !px-3"
           onClick={() => {
             setDay(addDays(day, 1));
             setId(undefined);
           }}
-        >
-          →
-        </button>
-        <span className="text-sm text-slate-500">
-          한국 시간 · 하루에 여러 일정 등록 가능
-        </span>
+        >→</button>
+        </div>
+        <a href="#new-event" className="primary-button">+ 일정 추가</a>
       </div>
       {message && (
         <p
           role="status"
-          className="rounded bg-blue-50 p-3 text-sm text-blue-900"
+          className="status-note"
         >
           {message}
         </p>
       )}
-      <label className="flex gap-2 text-sm">
+      <label className="soft-card flex items-start gap-3 p-4 text-sm leading-6">
         <input
           type="checkbox"
           checked={confirmed}
@@ -212,23 +214,26 @@ export default function TimePlanner() {
             void run(() => confirmDays(day, day, e.target.checked))
           }
         />
-        이 날짜의 일정을 모두 확인했습니다. 빈 시간을 그룹에 공유합니다.
+        <span><strong className="block">이 날짜의 일정을 확인했어요</strong><span className="muted">체크하면 나의 빈 시간만 그룹에 공유됩니다. 제목과 근무 종류는 보이지 않아요.</span></span>
       </label>
-      <div className="max-h-[560px] overflow-auto rounded-lg border dark:border-slate-600">
+      <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-extrabold">하루 타임라인</h2><p className="muted mt-1 text-xs">한국 시간 기준 · 여러 일정을 등록할 수 있어요.</p></div><span className="rounded-full bg-[var(--brand-light)] px-3 py-1 text-xs font-bold text-[var(--brand)]">{events.length}개 일정</span></div>
+      {events.length === 0 && <p className="empty-state text-sm"><span className="text-2xl" aria-hidden="true">◷</span>아직 이 날짜에 등록한 일정이 없어요.<span>아래에서 근무 또는 약속 시간을 추가해 보세요.</span></p>}
+      <div className="max-h-[430px] overflow-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
         {Array.from({ length: 24 }, (_, hour) => {
           const from = `${day}T${String(hour).padStart(2, "0")}:00:00+09:00`;
           const to = Date.parse(from) + 3600000;
           const rows = events.filter(
             (e) =>
               Date.parse(e.starts_at) < to &&
-              Date.parse(e.ends_at) > Date.parse(from),
+              Date.parse(e.ends_at) > Date.parse(from) &&
+              (Date.parse(e.starts_at) >= Date.parse(from) || hour === 0),
           );
           return (
             <div
               key={hour}
-              className="flex min-h-12 border-b dark:border-slate-700"
+              className="flex min-h-12 border-b border-[var(--line)] last:border-b-0"
             >
-              <span className="w-16 shrink-0 p-2 text-xs text-slate-500">
+              <span className="w-16 shrink-0 border-r border-[var(--line)] bg-[var(--surface-soft)] p-2 text-xs text-[var(--muted)]">
                 {String(hour).padStart(2, "0")}:00
               </span>
               <div className="flex flex-1 flex-wrap gap-1 p-1">
@@ -236,7 +241,7 @@ export default function TimePlanner() {
                   <button
                     key={e.id}
                     onClick={() => edit(e)}
-                    className={`rounded px-2 py-1 text-left text-xs ${e.kind === "work" ? "bg-blue-100 text-blue-900" : "bg-purple-100 text-purple-900"}`}
+                    className={`rounded-lg border-l-[3px] px-3 py-2 text-left text-xs font-semibold ${e.kind === "work" ? "border-[#176b60] bg-[#e2f3eb] text-[#14584e]" : e.kind === "rest" ? "border-[#7799a2] bg-[#e8f0f1] text-[#3d6267]" : "border-[#de9865] bg-[#fff0e2] text-[#754929]"}`}
                   >
                     {e.title} {localInput(e.starts_at).slice(11)}–
                     {localInput(e.ends_at).slice(11)}
@@ -262,13 +267,14 @@ export default function TimePlanner() {
         </details>
       )}
       <form
-        className="planner-form"
+        id="new-event"
+        className="planner-form scroll-mt-6 rounded-2xl border border-[var(--line)] bg-[var(--surface-soft)] p-4 sm:p-5"
         onSubmit={(e) => {
           e.preventDefault();
           void run(save);
         }}
       >
-        <h3 className="font-bold">{id ? "일정 수정" : "시간 일정 추가"}</h3>
+        <h3 className="text-lg font-extrabold">{id ? "일정 수정" : "새 일정 추가"}</h3>
         <input
           aria-label="일정 제목"
           required
@@ -352,9 +358,10 @@ export default function TimePlanner() {
         </button>
         {id && (
           <>
-            <button
-              type="button"
-              disabled={busy}
+          <button
+            type="button"
+            disabled={busy}
+            className="secondary-button !text-[#a54036]"
               onClick={() => {
                 if (
                   confirm(
@@ -369,8 +376,9 @@ export default function TimePlanner() {
             >
               삭제
             </button>
-            <button
-              type="button"
+          <button
+            type="button"
+            className="secondary-button"
               onClick={() => {
                 setId(undefined);
                 setTitle("");
@@ -381,8 +389,8 @@ export default function TimePlanner() {
           </>
         )}
       </form>
-      <details>
-        <summary className="cursor-pointer font-semibold">
+      <details className="rounded-2xl border border-[var(--line)] p-4 sm:p-5">
+        <summary className="cursor-pointer font-bold">
           순환 교대근무 일괄 등록
         </summary>
         <div className="planner-form mt-3">
@@ -390,7 +398,7 @@ export default function TimePlanner() {
             근무 유형 이름을 쉼표로 입력하세요. 예: 주간, 주간, 야간, 야간,
             휴무, 휴무. 기준일은 위에서 선택한 날짜입니다.
           </p>
-          <a href="/settings/work-pattern" className="text-blue-600">
+          <a href="/settings/work-pattern" className="brand-link">
             근무 유형 설정 →
           </a>
           <input

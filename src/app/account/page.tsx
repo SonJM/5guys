@@ -44,30 +44,21 @@ export default function AccountPage() {
   }
 
   if (isLoading) {
-    return <div className="p-8">Loading...</div>
+    return <div className="app-shell grid min-h-screen place-items-center"><p className="muted" role="status">계정 정보를 불러오는 중이에요…</p></div>
   }
 
   return (
-    <div className="flex flex-col items-center min-h-screen p-4 sm:p-8 bg-slate-50 dark:bg-slate-900">
-      <div className="w-full max-w-xl">
-        <Link href="/dashboard" className="text-sm text-blue-500 hover:underline">
-          &larr; 메인 페이지로 돌아가기
-        </Link>
-        <div className="w-full bg-white dark:bg-slate-800 p-8 mt-4 rounded-xl shadow-lg border dark:border-slate-700">
-          <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">계정 설정</h1>
-          <p className="mt-4 text-slate-600 dark:text-slate-300">이메일: {user?.email}</p>
-          <div className="mt-4">
-            <Link
-              href="/settings/work-pattern"
-              className="inline-block px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700"
-            >
-              근무 패턴 설정
-            </Link>
-          </div>
+    <div className="app-shell min-h-screen p-5 sm:p-8">
+      <div className="mx-auto w-full max-w-2xl">
+        <Link href="/dashboard" className="brand-link text-sm">← 대시보드로 돌아가기</Link>
+        <div className="mt-8"><p className="eyebrow">MY ACCOUNT</p><h1 className="mt-2 text-3xl font-black tracking-tight">계정 설정</h1><p className="muted mt-2 text-sm">내 정보와 근무 표기를 관리할 수 있어요.</p></div>
+        <div className="surface-card mt-6 p-6 sm:p-8">
+          <h2 className="text-lg font-extrabold">프로필</h2>
+          <p className="muted mt-2 text-sm">이메일 · {user?.email}</p>
           
-          <form onSubmit={handleUpdateUsername} className="mt-6">
+          <form onSubmit={handleUpdateUsername} className="mt-6 border-t border-[var(--line)] pt-6">
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-slate-600 dark:text-slate-400">
+              <label htmlFor="username" className="block text-sm font-bold">
                 이름 (별명)
               </label>
               <input
@@ -75,18 +66,19 @@ export default function AccountPage() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="mt-1 w-full p-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
+                className="mt-2 w-full"
               />
             </div>
             <button
               type="submit"
-              className="mt-4 px-6 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 disabled:bg-slate-400"
+              className="primary-button mt-4"
             >
               저장
             </button>
-            {message && <p className="mt-4 text-sm">{message}</p>}
+            {message && <p role="status" className="status-note mt-4">{message}</p>}
           </form>
         </div>
+        <div className="soft-card mt-5 flex flex-wrap items-center justify-between gap-4 p-6"><div><h2 className="font-extrabold">나의 근무 표기와 시간</h2><p className="muted mt-1 text-sm">근무 유형, OCR 별칭, 교대 시간 설정</p></div><Link href="/settings/work-pattern" className="secondary-button">설정하기 →</Link></div>
       </div>
     </div>
   )

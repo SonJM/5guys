@@ -69,7 +69,7 @@ export default function InviteMemberForm({ groupId }: { groupId: number | null }
         <select
           value={selectedUserId}
           onChange={(e) => setSelectedUserId(e.target.value)}
-          className="p-2 border rounded-md shadow-sm flex-grow bg-white dark:bg-slate-700 dark:border-slate-600"
+          className="flex-grow"
           disabled={!groupId}
         >
           <option value="">초대할 멤버 선택...</option>
@@ -82,7 +82,7 @@ export default function InviteMemberForm({ groupId }: { groupId: number | null }
         <button
           type="submit"
           disabled={!groupId || isLoading}
-          className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 disabled:bg-slate-400 whitespace-nowrap"
+          className="primary-button whitespace-nowrap"
         >
           초대
         </button>

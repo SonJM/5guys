@@ -43,19 +43,20 @@ export default function GroupManager({ user, selectedGroupId, setSelectedGroupId
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">새 그룹 만들기</h4>
+    <div className="space-y-5">
+      <div className="soft-card p-5">
+        <h4 className="mb-2 text-lg font-extrabold">새 그룹 만들기</h4>
+        <p className="muted mb-4 text-sm">함께 일정을 맞출 사람들을 한 공간에 모아보세요.</p>
         <CreateGroupForm onGroupCreated={handleGroupCreated} />
       </div>
 
       {groups.length > 0 && (
-        <div>
-          <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">그룹 선택</h4>
+        <div className="soft-card p-5">
+          <h4 className="mb-2 text-lg font-extrabold">내 그룹</h4>
           <select
             value={selectedGroupId || ''}
             onChange={(e) => setSelectedGroupId(Number(e.target.value))}
-            className="w-full p-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
+            className="w-full"
           >
             {groups.map(group => (
               <option key={group.id} value={group.id}>
@@ -66,9 +67,9 @@ export default function GroupManager({ user, selectedGroupId, setSelectedGroupId
         </div>
       )}
 
-      <div>
-        <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">멤버 초대하기</h4>
-        <p className="mb-2 text-sm text-slate-500">그룹 생성자만 기존 사용자를 추가할 수 있습니다. 일정 제목과 근무 종류는 공유되지 않습니다.</p>
+      <div className="soft-card p-5">
+        <h4 className="mb-2 text-lg font-extrabold">멤버 초대하기</h4>
+        <p className="muted mb-4 text-sm leading-6">그룹 생성자만 기존 사용자를 추가할 수 있습니다. 일정 제목과 근무 종류는 공유되지 않습니다.</p>
         <InviteMemberForm groupId={selectedGroupId} />
       </div>
     </div>

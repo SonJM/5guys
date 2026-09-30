@@ -48,8 +48,8 @@ export default function PlaceRecommendations() {
   }
   return (
     <section className="space-y-5">
-      <h2 className="text-xl font-bold">어디서 만날까요?</h2>
-      <p className="text-sm text-slate-500">
+      <h2 className="text-xl font-extrabold">모두에게 편한 장소 찾기</h2>
+      <p className="muted text-sm leading-6">
         국내 장소를 검색하고 구성원별 이동 시간을 비교합니다. 출발지는 이번
         검색에만 사용하며 그룹에 저장하지 않습니다.
       </p>
@@ -60,7 +60,7 @@ export default function PlaceRecommendations() {
           void search();
         }}
       >
-        <div className="planner-form">
+        <div className="planner-form rounded-2xl bg-[var(--surface-soft)] p-4">
           <select
             aria-label="약속 유형"
             value={type}
@@ -80,8 +80,10 @@ export default function PlaceRecommendations() {
             onChange={(e) => setRegion(e.target.value)}
           />
         </div>
+        <h3 className="text-sm font-extrabold">출발지와 이동수단</h3>
         {people.map((p, i) => (
-          <div key={i} className="planner-form">
+          <div key={i} className="planner-form rounded-xl border border-[var(--line)] p-3">
+            <span className="rounded-full bg-[var(--brand-light)] px-2 py-1 text-xs font-bold text-[var(--brand)]">{i + 1}</span>
             <input
               aria-label={`참여자 ${i + 1} 이름`}
               required
@@ -127,6 +129,7 @@ export default function PlaceRecommendations() {
             {people.length > 1 && (
               <button
                 type="button"
+                className="ghost-button"
                 onClick={() => setPeople(people.filter((_, j) => i !== j))}
               >
                 제외
@@ -134,9 +137,10 @@ export default function PlaceRecommendations() {
             )}
           </div>
         ))}
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-3">
           <button
             type="button"
+            className="secondary-button"
             disabled={people.length >= 8}
             onClick={() =>
               setPeople([...people, { name: "", origin: "", mode: "transit" }])
@@ -150,29 +154,30 @@ export default function PlaceRecommendations() {
         </div>
       </form>
       {message && (
-        <p role="status" className="text-sm">
+        <p role="status" className="status-note">
           {message}
         </p>
       )}
-      {results.map((p) => (
-        <article key={p.id} className="space-y-2 rounded-lg border p-4">
+      {results.map((p, index) => (
+        <article key={p.id} className="space-y-3 rounded-2xl border border-[var(--line)] p-5">
+          <span className="eyebrow">추천 장소 {index + 1}</span>
           <h3 className="font-bold">
             <a
               href={p.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600"
+              className="brand-link"
             >
               {p.name} ↗
             </a>
           </h3>
-          <p className="text-sm text-slate-500">{p.address}</p>
+          <p className="muted text-sm">{p.address}</p>
           {p.reason && <p className="text-sm">{p.reason}</p>}
           <ul className="space-y-2">
             {p.journeys.map((j, i) => (
               <li
                 key={i}
-                className="rounded bg-slate-100 p-2 text-sm text-slate-800"
+                className="rounded-xl bg-[var(--surface-soft)] p-3 text-sm"
               >
                 <strong>{j.name}</strong> · {j.origin} ·{" "}
                 {j.mode === "car" ? "자동차" : "대중교통"} ·{" "}

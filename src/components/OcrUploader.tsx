@@ -153,12 +153,13 @@ export default function OcrUploader() {
   }
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-bold">근무표 사진으로 일정 만들기</h2>
-      <p className="text-sm text-slate-500">
+      <div className="flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-[var(--brand-light)] px-3 py-1.5 text-[var(--brand)]">1 사진 선택</span><span className="rounded-full bg-[var(--surface-soft)] px-3 py-1.5">2 영역 인식</span><span className="rounded-full bg-[var(--surface-soft)] px-3 py-1.5">3 결과 확인</span></div>
+      <h2 className="text-xl font-extrabold">근무표 사진으로 일정 만들기</h2>
+      <p className="muted text-sm leading-6">
         달력과 연월만 남도록 영역을 조정하세요. 광고·하단 메뉴는 제외하고, 여러
         사람의 표라면 본인 이름을 입력하세요.
       </p>
-      <a href="/settings/work-pattern" className="text-blue-600">
+      <a href="/settings/work-pattern" className="brand-link text-sm">
         나의 근무 표기·시간 설정 →
       </a>
       <input
@@ -166,6 +167,7 @@ export default function OcrUploader() {
         type="file"
         accept="image/png,image/jpeg,image/webp"
         disabled={busy}
+        className="block w-full rounded-2xl border border-dashed border-[var(--line)] bg-[var(--surface-soft)] p-5 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-[var(--brand)] file:px-4 file:py-2 file:font-bold file:text-white dark:file:text-[#10352e]"
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (!f) return;
@@ -182,7 +184,7 @@ export default function OcrUploader() {
       />
       {image && (
         <>
-          <div className="relative mx-auto max-w-md">
+          <div className="relative mx-auto max-w-md overflow-hidden rounded-2xl border border-[var(--line)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={img}
@@ -227,7 +229,7 @@ export default function OcrUploader() {
           </button>
         </>
       )}
-      <div className="planner-form">
+      <div className="planner-form rounded-2xl bg-[var(--surface-soft)] p-4">
         <input
           aria-label="근무표 연월"
           type="month"
@@ -259,7 +261,7 @@ export default function OcrUploader() {
           setLayout([]);
           setRows([]);
         }}
-        className="h-32 w-full rounded border bg-transparent p-3"
+        className="h-32 w-full"
       />
       <button
         disabled={busy || !text.trim()}
@@ -272,19 +274,19 @@ export default function OcrUploader() {
       {message && (
         <p
           role="status"
-          className="rounded bg-blue-50 p-3 text-sm text-blue-900"
+          className="status-note"
         >
           {message}
         </p>
       )}
       {rows.length > 0 && (
         <>
-          <p className="text-sm">
+          <p className="muted text-sm">
             날짜별 결과를 확인하세요. 낮은 확신도와 미등록 기호는 반드시
             수정해주세요.
           </p>
           {rows.map((row, i) => (
-            <div key={row.date} className="planner-form">
+            <div key={row.date} className="planner-form rounded-xl border border-[var(--line)] p-3">
               <input
                 aria-label={`${row.date} 확인`}
                 type="checkbox"

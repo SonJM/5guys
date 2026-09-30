@@ -1,112 +1,102 @@
-/* src/app/globals.css */
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --background: #f5f7f4;
+  --foreground: #172b2b;
+  --surface: #ffffff;
+  --surface-soft: #eef5f1;
+  --muted: #607370;
+  --line: #dce7e1;
+  --brand: #176b60;
+  --brand-strong: #105449;
+  --brand-light: #e2f3eb;
+  --accent: #efab75;
+  --shadow: 0 18px 48px -30px rgb(20 66 58 / 28%);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #101c1c;
+  --foreground: #edf5f1;
+  --surface: #192a29;
+  --surface-soft: #203632;
+  --muted: #a9c0b8;
+  --line: #35504a;
+  --brand: #75d5be;
+  --brand-strong: #a4e8d4;
+  --brand-light: #24473e;
+  --accent: #eeb58d;
+  --shadow: 0 18px 48px -30px rgb(0 0 0 / 70%);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 body {
+  min-height: 100vh;
+  overflow-x: hidden;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+::selection { background: #b4e8d4; color: #143c34; }
 
-/* react-day-picker 다크 모드 스타일 */
-.dark .rdp {
-  --rdp-caption-color: #e2e8f0;
-  --rdp-nav-color: #94a3b8;
-  --rdp-cell-color: #cbd5e1;
-  --rdp-heading-color: #f1f5f9;
-  --rdp-button-color: #cbd5e1;
-}
-.dark .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
-    background-color: #334155;
-}
-.dark .rdp-day_selected, .dark .rdp-day_selected:hover {
-    background-color: #2563eb !important;
-    color: #f8fafc !important;
-}
-.dark .rdp-day_today {
-    color: #3b82f6 !important;
-    font-weight: bold;
-}
+.app-shell { min-height: 100vh; background: radial-gradient(circle at 85% -10%, #e2f5e8 0, transparent 29rem), var(--background); }
+.dark .app-shell { background: radial-gradient(circle at 85% -10%, #1c403a 0, transparent 29rem), var(--background); }
+.surface-card { background: var(--surface); border: 1px solid var(--line); border-radius: 1.5rem; box-shadow: var(--shadow); }
+.soft-card { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 1rem; }
+.eyebrow { color: var(--brand); font-size: .75rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.muted { color: var(--muted); }
+.brand-link { color: var(--brand); font-weight: 700; text-underline-offset: 4px; }
+.brand-link:hover { text-decoration: underline; }
+.brand-mark { display: inline-grid; place-items: center; width: 2.65rem; height: 2.65rem; border-radius: .9rem; background: var(--brand); color: #fff; font-size: 1.2rem; font-weight: 900; line-height: 1; box-shadow: 0 8px 22px -12px #176b60; }
+.dark .brand-mark { color: #10352e; }
+.primary-button, .secondary-button, .ghost-button { display: inline-flex; align-items: center; justify-content: center; gap: .45rem; border-radius: .85rem; min-height: 2.75rem; padding: .65rem 1rem; font-size: .875rem; font-weight: 750; line-height: 1.2; transition: background .18s ease, transform .18s ease, box-shadow .18s ease; }
+.primary-button { background: var(--brand); color: #fff; box-shadow: 0 10px 22px -15px #176b60; }
+.primary-button:hover:not(:disabled) { background: var(--brand-strong); transform: translateY(-1px); }
+.dark .primary-button { color: #10352e; }
+.secondary-button { border: 1px solid var(--line); background: var(--surface); color: var(--foreground); }
+.secondary-button:hover:not(:disabled) { background: var(--surface-soft); }
+.ghost-button { color: var(--brand); }
+.ghost-button:hover:not(:disabled) { background: var(--brand-light); }
+.status-note { border: 1px solid var(--line); border-radius: .9rem; padding: .8rem 1rem; background: var(--brand-light); color: var(--foreground); font-size: .875rem; }
+.empty-state { display: grid; justify-items: center; gap: .5rem; padding: 2.5rem 1.5rem; border: 1px dashed var(--line); border-radius: 1rem; background: var(--surface-soft); text-align: center; color: var(--muted); }
 
-/* 근무 형태별 스타일 */
-.rdp-day_workA { background-color: #93c5fd; color: #1e3a8a; } /* blue-300 */
-.rdp-day_workB { background-color: #7dd3fc; color: #0c4a6e; } /* sky-300 */
-.rdp-day_workC { background-color: #5eead4; color: #134e4a; } /* teal-300 */
-
-/* 다크 모드에서의 근무 형태별 스타일 */
-.dark .rdp-day_workA { background-color: #1e40af; color: #eff6ff; } /* blue-800 */
-.dark .rdp-day_workB { background-color: #0369a1; color: #e0f2fe; } /* sky-700 */
-.dark .rdp-day_workC { background-color: #0f766e; color: #ccfbf1; } /* teal-700 */
-
-/* 모든 근무일의 글자를 굵게 처리 */
-.rdp-day_workA, .rdp-day_workB, .rdp-day_workC {
-    font-weight: bold;
-}
-
-/* --- 반응형 달력 스타일 (유지) --- */
-.rdp {
-  --rdp-cell-size: 40px;
-  margin: 0 auto; /* 달력이 컨테이너 중앙에 오도록 함 */
-}
-
-/* 화면이 640px보다 작을 때 (모바일) */
-@media (max-width: 640px) {
-  .rdp {
-    --rdp-cell-size: 10vw; /* 셀 크기를 화면 너비에 비례하도록 변경 */
-    max-width: 100%; /* 달력이 부모 너비를 넘어가지 않도록 함 */
-    font-size: 0.8rem; /* 폰트 크기 추가 조정 */
-  }
-  .rdp-caption_label {
-    font-size: 1rem;
-  }
-  .rdp-head_cell {
-    font-size: 0.75rem; /* 요일 폰트 크기 조정 */
-  }
-}
-
-/* --- 반응형 버튼 텍스트 스타일 (추가) --- */
-.responsive-button-text {
-  display: inline-block;
-  white-space: nowrap; /* 텍스트가 줄바꿈되지 않도록 설정 */
-  overflow: hidden;       /* 내용이 넘치면 숨김 */
-  text-overflow: ellipsis; /* 넘치는 텍스트를 ...으로 표시 (선택 사항) */
-  font-size: 1rem;       /* 기본 폰트 크기 */
-}
-
-@media (max-width: 480px) {
-  .responsive-button-text {
-    font-size: 0.8rem; /* 작은 화면에서 폰트 크기 줄임 */
-  }
-}
-
-@media (max-width: 320px) {
-  .responsive-button-text {
-    font-size: 0.7rem; /* 더 작은 화면에서 폰트 크기 추가 줄임 */
-  }
-}
-/* Shared accessible controls for the time-based planner. */
 .planner-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
 .planner-form h3 { width: 100%; }
-.planner-form input:not([type=checkbox]), .planner-form select, input[type=date] { padding: .5rem; border: 1px solid #94a3b8; border-radius: .5rem; background: transparent; max-width: 100%; }
-.planner-form input[type=number] { width: 5rem; }
-.planner-form label { font-size: .875rem; }
-.primary-button { background: #2563eb; color: white; padding: .5rem 1rem; border-radius: .5rem; }
-button:disabled { opacity: .5; cursor: not-allowed; }
+.planner-form label { font-size: .875rem; font-weight: 600; }
+.planner-form input:not([type=checkbox]):not([type=color]), .planner-form select,
+input[type=date], input[type=month], input[type=text], input[type=time], input[type=number], input[type=email], select, textarea {
+  min-height: 2.7rem; max-width: 100%; padding: .55rem .75rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--surface); color: var(--foreground);
+}
+input[type=checkbox], input[type=range], input[type=color] { accent-color: var(--brand); }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: .85; }
+.planner-form input[type=number] { width: 5.5rem; }
+textarea { resize: vertical; }
+
+.rdp { --rdp-accent-color: var(--brand); --rdp-accent-background-color: var(--brand-light); margin: 0 auto; }
+.rdp-day_selected, .rdp-day_selected:hover { background: var(--brand) !important; color: #fff !important; }
+.rdp-day_today { color: var(--brand) !important; font-weight: 800; }
+.rdp-day_workA { background: #c5e7e1; color: #19534c; }
+.rdp-day_workB { background: #d4e8f6; color: #274b65; }
+.rdp-day_workC { background: #f8e1ca; color: #765230; }
+.rdp-day_appointment { box-shadow: inset 0 -3px var(--accent); }
+.rdp-day_workA, .rdp-day_workB, .rdp-day_workC { font-weight: 750; }
+.dark .rdp-day_workA { background: #235a50; color: #e3fff4; }
+.dark .rdp-day_workB { background: #294f67; color: #e3f4ff; }
+.dark .rdp-day_workC { background: #70533b; color: #ffedda; }
+@media (max-width: 640px) { .rdp { --rdp-day-width: min(11vw, 42px); --rdp-day-height: 40px; max-width: 100%; } }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }

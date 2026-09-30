@@ -36,13 +36,13 @@ export default function GroupAvailability({
   const matches = commonWindows(rows, duration);
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-bold">그룹의 공통 가능 시간</h2>
-      <p className="text-sm text-slate-500">
+      <h2 className="text-xl font-extrabold">그룹의 공통 가능 시간</h2>
+      <p className="muted text-sm leading-6">
         근무 종류와 약속 제목은 공유하지 않습니다. 각자 확인한 날짜의 빈 시간만
         표시합니다. 한국 시간 기준입니다.
       </p>
-      {!groupId && <p>그룹 관리에서 그룹을 선택해주세요.</p>}
-      <div className="planner-form">
+      {!groupId && <p className="empty-state text-sm">아직 선택된 그룹이 없어요.<span>먼저 그룹 메뉴에서 새 그룹을 만들거나 참여해 주세요.</span></p>}
+      <div className="planner-form rounded-2xl bg-[var(--surface-soft)] p-4">
         <input
           aria-label="약속 날짜"
           type="date"
@@ -74,16 +74,16 @@ export default function GroupAvailability({
           />
         </label>
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="muted text-xs">
         최대 14일 범위에서 연속 시간을 찾습니다. 여행 2일은 48시간으로
         입력하세요. 아래 표는 검색 시작일입니다.
       </p>
-      {message && <p role="alert">{message}</p>}
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+      {message && <p role="alert" className="status-note">{message}</p>}
+      <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
+        <table className="w-full min-w-[760px] text-xs">
           <thead>
-            <tr>
-              <th>구성원</th>
+            <tr className="bg-[var(--surface-soft)]">
+              <th className="sticky left-0 bg-[var(--surface-soft)] p-2 text-left">구성원</th>
               {Array.from({ length: 24 }, (_, i) => (
                 <th key={i} className="p-1">
                   {i}
@@ -94,7 +94,7 @@ export default function GroupAvailability({
           <tbody>
             {members.map(([id, name]) => (
               <tr key={id}>
-                <th className="whitespace-nowrap p-2">{name}</th>
+                <th className="sticky left-0 whitespace-nowrap bg-[var(--surface)] p-2 text-left">{name}</th>
                 {Array.from({ length: 24 }, (_, h) => {
                   const hour = rows.filter(
                     (r) =>
@@ -109,7 +109,7 @@ export default function GroupAvailability({
                           <span
                             key={r.slot}
                             title={`${localInput(r.slot).slice(11)} ${!r.confirmed ? "미확정" : r.available ? "가능" : "가능 시간 아님"}`}
-                            className={`h-5 w-2 ${!r.confirmed ? "bg-slate-200" : r.available ? "bg-emerald-400" : "bg-slate-500"}`}
+                            className={`h-5 w-2 rounded-sm ${!r.confirmed ? "bg-[#dae4df] dark:bg-[#49615a]" : r.available ? "bg-[#3aa884]" : "bg-[#82948d]"}`}
                           />
                         ))}
                       </div>
@@ -121,27 +121,27 @@ export default function GroupAvailability({
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-500">
-        초록: 가능 · 회색: 미확정 또는 가능 시간 아님 · 칸당 30분
+      <p className="muted text-xs">
+        초록: 가능 · 진회색: 불가능 · 연회색: 미확정 · 칸당 30분
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div><h3 className="mb-3 text-base font-extrabold">추천 가능한 시간 <span className="text-[var(--brand)]">{matches.length}</span></h3><div className="flex flex-wrap gap-2">
         {matches.slice(0, 60).map((s) => (
           <span
             key={s.start}
-            className="rounded bg-emerald-100 p-2 text-sm text-emerald-900"
+            className="rounded-xl bg-[var(--brand-light)] px-3 py-2 text-sm font-semibold text-[var(--brand)]"
           >
             {localInput(s.start).replace("T", " ")} ~{" "}
             {localInput(s.end).replace("T", " ")}
           </span>
         ))}
-      </div>
+      </div></div>
       {matches.length > 60 && (
         <p className="text-sm">
           총 {matches.length}개 중 앞선 60개 후보입니다. 검색 범위를 좁혀주세요.
         </p>
       )}
       {groupId && !matches.length && (
-        <p>
+        <p className="empty-state text-sm">
           모두가 확인한 공통 가능 시간이 없습니다. 일정 확인 여부와 약속 길이를
           확인해주세요.
         </p>

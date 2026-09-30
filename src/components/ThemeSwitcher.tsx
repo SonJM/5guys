@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 
 export function ThemeSwitcher() {
   const [mounted, setMounted] = useState(false)
-  const { theme, setTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
 
   // UI가 마운트된 후에만 렌더링하여 하이드레이션 오류를 방지합니다.
   useEffect(() => {
@@ -18,12 +18,12 @@ export function ThemeSwitcher() {
 
   return (
     <button
-      aria-label="Toggle Dark Mode"
+      aria-label={resolvedTheme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
       type="button"
-      className="p-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg"
-      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      className="secondary-button !min-h-9 !px-3"
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
     >
-      {theme === 'dark' ? '☀️' : '🌙'}
+      {resolvedTheme === 'dark' ? '☀️' : '🌙'}
     </button>
   )
 }
