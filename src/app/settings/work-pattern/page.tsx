@@ -9,7 +9,7 @@ const blank = {
   start_time: "09:00",
   end_time: "18:00",
   end_day_offset: 0,
-  color: "#2563eb",
+  color: "#0f766e",
   is_off: false,
 };
 export default function WorkPatternPage() {

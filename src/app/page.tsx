@@ -35,8 +35,8 @@ export default function LandingPage() {
           </div>
 
           <div className="relative mx-auto w-full max-w-[480px]" aria-label="일정 조율 화면 예시">
-            <div className="absolute -left-5 -top-6 h-32 w-32 rounded-full bg-[#d6eee3] blur-3xl dark:bg-[#285347]" />
-            <div className="absolute -bottom-8 -right-6 h-40 w-40 rounded-full bg-[#f7dfc8] blur-3xl dark:bg-[#5c4634]" />
+            <div className="absolute -left-5 -top-6 h-32 w-32 rounded-full bg-[#d9f1e8] blur-3xl dark:bg-[#285347]" />
+            <div className="absolute -bottom-8 -right-6 h-40 w-40 rounded-full bg-[#f9d4cb] blur-3xl dark:bg-[#5c3634]" />
             <div className="surface-card relative overflow-hidden p-5 sm:p-7">
               <div className="mb-6 flex items-center justify-between">
                 <div>
@@ -47,17 +47,17 @@ export default function LandingPage() {
               </div>
               <div className="grid grid-cols-5 gap-2 text-center text-xs">
                 {['월', '화', '수', '목', '금'].map((d, i) => (
-                  <div key={d} className={`rounded-2xl px-1 py-3 ${i === 2 ? 'bg-[var(--brand)] text-white' : 'bg-[var(--surface-soft)]'}`}>
+                  <div key={d} className={`rounded-2xl px-1 py-3 ${i === 2 ? 'bg-[var(--brand)] text-white dark:text-[#10352e]' : 'bg-[var(--surface-soft)]'}`}>
                     <div className="opacity-70">{d}</div><div className="mt-2 text-base font-extrabold">{14 + i}</div>
                   </div>
                 ))}
               </div>
               <div className="mt-6 space-y-3">
-                <div className="flex items-center gap-3 rounded-xl bg-[var(--surface-soft)] p-3"><span className="h-8 w-8 rounded-full bg-[#c5e7e1]" /><span className="text-sm font-semibold">지은</span><span className="ml-auto text-xs text-[var(--brand)]">18:00 이후 가능</span></div>
-                <div className="flex items-center gap-3 rounded-xl bg-[var(--surface-soft)] p-3"><span className="h-8 w-8 rounded-full bg-[#f8e1ca]" /><span className="text-sm font-semibold">민호</span><span className="ml-auto text-xs text-[var(--brand)]">19:00 이후 가능</span></div>
+                <div className="flex items-center gap-3 rounded-xl bg-[var(--surface-soft)] p-3"><span className="h-8 w-8 rounded-full bg-[#bce8dc]" /><span className="text-sm font-semibold">지은</span><span className="ml-auto text-xs text-[var(--brand)]">18:00 이후 가능</span></div>
+                <div className="flex items-center gap-3 rounded-xl bg-[var(--surface-soft)] p-3"><span className="h-8 w-8 rounded-full bg-[#f8c4b9]" /><span className="text-sm font-semibold">민호</span><span className="ml-auto text-xs text-[var(--brand)]">19:00 이후 가능</span></div>
                 <div className="flex items-center gap-3 rounded-xl bg-[var(--surface-soft)] p-3"><span className="h-8 w-8 rounded-full bg-[#d4e8f6]" /><span className="text-sm font-semibold">서연</span><span className="ml-auto text-xs text-[var(--brand)]">18:30 이후 가능</span></div>
               </div>
-              <div className="mt-5 rounded-xl bg-[#e7f5ed] p-4 text-sm text-[#21584a] dark:bg-[#24473e] dark:text-[#d8f7e9]"><span className="font-extrabold">추천 시간</span><span className="float-right font-bold">수요일 19:00 – 21:00</span></div>
+              <div className="mt-5 rounded-xl bg-[var(--accent-soft)] p-4 text-sm text-[var(--accent-ink)]"><span className="font-extrabold">추천 시간</span><span className="float-right font-bold">수요일 19:00 – 21:00</span></div>
             </div>
           </div>
         </section>

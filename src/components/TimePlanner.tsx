@@ -241,7 +241,7 @@ export default function TimePlanner() {
                   <button
                     key={e.id}
                     onClick={() => edit(e)}
-                    className={`rounded-lg border-l-[3px] px-3 py-2 text-left text-xs font-semibold ${e.kind === "work" ? "border-[#176b60] bg-[#e2f3eb] text-[#14584e]" : e.kind === "rest" ? "border-[#7799a2] bg-[#e8f0f1] text-[#3d6267]" : "border-[#de9865] bg-[#fff0e2] text-[#754929]"}`}
+                    className={`rounded-lg border-l-[3px] px-3 py-2 text-left text-xs font-semibold ${e.kind === "work" ? "border-[#0f766e] bg-[#e4f3ef] text-[#155a53] dark:bg-[#24473e] dark:text-[#c4efdf]" : e.kind === "rest" ? "border-[#7799a2] bg-[#e8f0f1] text-[#3d6267] dark:bg-[#29434a] dark:text-[#d7eaeb]" : "border-[#e9796b] bg-[#fbe9e3] text-[#713c35] dark:bg-[#50332e] dark:text-[#fbe9e3]"}`}
                   >
                     {e.title} {localInput(e.starts_at).slice(11)}–
                     {localInput(e.ends_at).slice(11)}

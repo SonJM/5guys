@@ -208,7 +208,7 @@ export async function savePattern(pattern: Partial<ShiftPattern>) {
     end_day_offset: pattern.end_day_offset,
     color: /^#[0-9a-f]{6}$/i.test(pattern.color ?? "")
       ? pattern.color
-      : "#2563eb",
+      : "#0f766e",
     is_off: !!pattern.is_off,
   });
   if (error)

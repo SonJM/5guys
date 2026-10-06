@@ -95,7 +95,7 @@ export default function GoogleCalendarConnection() {
           <div><strong className="block">Google Calendar</strong><span className="muted text-xs">기본 캘린더와 양방향 동기화</span></div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`rounded-full px-3 py-1 text-xs font-bold ${connected ? 'bg-[#e2f3eb] text-[#176b60] dark:bg-[#24473e] dark:text-[#9de6ce]' : 'bg-[var(--surface-soft)] text-[var(--muted)]'}`}>{connected ? '연결됨' : '연결 전'}</span>
+          <span className={`rounded-full px-3 py-1 text-xs font-bold ${connected ? 'bg-[var(--brand-light)] text-[var(--brand)]' : 'bg-[var(--surface-soft)] text-[var(--muted)]'}`}>{connected ? '연결됨' : '연결 전'}</span>
           <a href="/api/google/connect" className="secondary-button !min-h-9 !px-3">{connected ? "다시 연결" : "캘린더 연결"}</a>
           {connected && <button className="primary-button !min-h-9 !px-3" disabled={busy} onClick={() => void sync()}>{busy ? "동기화 중…" : "지금 동기화"}</button>}
         </div>

@@ -4,8 +4,8 @@
     "description": "근무표부터 약속 장소까지, 함께 맞추는 우리의 시간",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#f5f7f4",
-    "theme_color": "#176b60",
+    "background_color": "#fffaf7",
+    "theme_color": "#0f766e",
     "icons": [
       {
         "src": "/icon-192x192.png",

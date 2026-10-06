@@ -42,7 +42,7 @@ export default function LoginPage() {
           {authError && <p role="alert" className="mb-5 rounded-xl border border-[#f3c8ad] bg-[#fff3e9] p-3 text-sm text-[#7d4229] dark:border-[#825840] dark:bg-[#3a281f] dark:text-[#ffd5bd]">로그인을 완료하지 못했어요. 다시 시도해 주세요. 문제가 계속되면 관리자에게 알려주세요.</p>}
           <Auth
             supabaseClient={supabase}
-            appearance={{ theme: ThemeSupa, variables: { default: { colors: { brand: '#176b60', brandAccent: '#105449', inputBackground: 'transparent' }, radii: { borderRadiusButton: '12px', inputBorderRadius: '12px' } } } }}
+            appearance={{ theme: ThemeSupa, variables: { default: { colors: { brand: '#0f766e', brandAccent: '#0b5c55', inputBackground: 'transparent' }, radii: { borderRadiusButton: '12px', inputBorderRadius: '12px' } } } }}
             theme={resolvedTheme === 'dark' ? 'dark' : 'default'}
             providers={['google']}
             redirectTo={redirectUrl}

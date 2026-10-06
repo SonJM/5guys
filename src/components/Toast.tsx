@@ -15,7 +15,7 @@ export function Toast({ message, type, onClose }: ToastProps) {
   }, [onClose])
 
   const colorClass = {
-    success: 'bg-[#176b60]',
+    success: 'bg-[#0f766e]',
     error: 'bg-[#a54036]',
     info: 'bg-[#356d82]',
   }[type]

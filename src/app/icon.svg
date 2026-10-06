@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="5총사">
-  <rect width="512" height="512" rx="118" fill="#176b60"/>
-  <circle cx="384" cy="129" r="32" fill="#efab75"/>
+  <rect width="512" height="512" rx="118" fill="#0f766e"/>
+  <circle cx="384" cy="129" r="32" fill="#e9796b"/>
   <path d="M337 144H188l-15 119c28-23 54-34 87-34 68 0 113 43 113 105 0 70-50 117-124 117-53 0-97-24-122-69" fill="none" stroke="#ffffff" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
