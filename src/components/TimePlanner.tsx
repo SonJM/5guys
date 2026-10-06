@@ -1,7 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  confirmDays,
   deleteEvents,
   loadPlanner,
   saveEvents,
@@ -15,15 +14,18 @@ import {
   type PlannerEvent,
   type ShiftPattern,
 } from "@/lib/planner";
+import MonthGrid, { monthBounds } from "@/components/MonthGrid";
 
 export default function TimePlanner() {
   const [day, setDay] = useState(dayString());
+  const [month, setMonth] = useState(dayString().slice(0, 7));
+  const [monthEvents, setMonthEvents] = useState<PlannerEvent[]>([]);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [events, setEvents] = useState<PlannerEvent[]>([]);
   const [patterns, setPatterns] = useState<ShiftPattern[]>([]);
   const [legacy, setLegacy] = useState<
     { date: string; status: string; event_title: string | null }[]
   >([]);
-  const [confirmed, setConfirmed] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [id, setId] = useState<string>();
@@ -46,28 +48,45 @@ export default function TimePlanner() {
       setEvents(data.events);
       setPatterns(data.patterns);
       setLegacy(data.legacy);
-      setConfirmed(data.coverage.includes(day));
     } catch (e) {
       if (version !== requestVersion.current) return;
       setMessage((e as Error).message);
     }
   }, [day]);
+  const reloadMonth = useCallback(async () => {
+    const { first, last } = monthBounds(month);
+    try {
+      const data = await loadPlanner(first, last);
+      setMonthEvents(data.events);
+    } catch (e) {
+      setMessage((e as Error).message);
+    }
+  }, [month]);
   useEffect(() => {
     void reload();
   }, [reload]);
+  useEffect(() => { void reloadMonth(); }, [reloadMonth]);
   useEffect(() => {
     const listener = () => {
       void reload();
+      void reloadMonth();
     };
     window.addEventListener("planner-synced", listener);
     return () => window.removeEventListener("planner-synced", listener);
-  }, [reload]);
+  }, [reload, reloadMonth]);
+  useEffect(() => {
+    if (!editorOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setEditorOpen(false); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editorOpen]);
   async function run(task: () => Promise<void>) {
     setBusy(true);
     setMessage("");
     try {
       await task();
       await reload();
+      await reloadMonth();
       setMessage("저장했습니다. Google 연결 시 다음 동기화에 반영됩니다.");
     } catch (e) {
       setMessage((e as Error).message);
@@ -81,17 +100,20 @@ export default function TimePlanner() {
     setStart(localInput(event.starts_at).slice(11));
     setEnd(localInput(event.ends_at).slice(11));
     setDay(dayString(new Date(event.starts_at)));
+    setMonth(dayString(new Date(event.starts_at)).slice(0, 7));
     setNextDay(
       dayString(new Date(event.starts_at)) !==
         dayString(new Date(event.ends_at)),
     );
     setKind(event.kind);
     setScope("one");
+    setEditorOpen(true);
   }
   async function save() {
     if (id && scope !== "one") {
       await updateSeries(id, title, start, end, nextDay, scope);
       setId(undefined);
+      setEditorOpen(false);
       return;
     }
     const count = id ? 1 : repeat;
@@ -127,6 +149,7 @@ export default function TimePlanner() {
     );
     setId(undefined);
     setTitle("");
+    setEditorOpen(false);
   }
   async function applyCycle() {
     const labels = cycle
@@ -158,44 +181,17 @@ export default function TimePlanner() {
         ...shiftTimes(date, p),
       }));
     if (rows.length) await saveEvents(rows);
-    setMessage(
-      "순환 근무를 등록했습니다. 전체 일정을 확인한 뒤 가능 시간 공유를 켜주세요.",
-    );
+    setMessage("순환 근무를 등록했습니다. 빈 시간은 그룹 달력에 자동 반영됩니다.");
   }
   return (
     <section className="space-y-5">
+      <MonthGrid month={month} selectedDay={day} onMonthChange={(next) => { setMonth(next); setDay(`${next}-01`); setId(undefined); }} onSelect={(date) => { setDay(date); setMonth(date.slice(0, 7)); setId(undefined); }} badge={(date) => {
+        const count = monthEvents.filter((event) => Date.parse(event.starts_at) < Date.parse(`${addDays(date, 1)}T00:00:00+09:00`) && Date.parse(event.ends_at) > Date.parse(`${date}T00:00:00+09:00`)).length;
+        return count ? <span className="rounded-full bg-[var(--accent-soft)] px-1.5 text-[10px] font-bold text-[var(--accent-ink)]">{count}건</span> : null;
+      }} />
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[var(--surface-soft)] p-3 sm:p-4">
-        <div className="flex items-center gap-2">
-        <button
-          type="button"
-          aria-label="이전 날짜"
-          className="secondary-button !min-h-10 !px-3"
-          onClick={() => {
-            setDay(addDays(day, -1));
-            setId(undefined);
-          }}
-        >←</button>
-        <input
-          aria-label="조회 날짜"
-          type="date"
-          value={day}
-          onChange={(e) => {
-            if (!e.target.value) return;
-            setDay(e.target.value);
-            setId(undefined);
-          }}
-        />
-        <button
-          type="button"
-          aria-label="다음 날짜"
-          className="secondary-button !min-h-10 !px-3"
-          onClick={() => {
-            setDay(addDays(day, 1));
-            setId(undefined);
-          }}
-        >→</button>
-        </div>
-        <a href="#new-event" className="primary-button">+ 일정 추가</a>
+        <div><strong>{day} 일정</strong><p className="muted text-xs">빈 시간은 소속 그룹에 자동 반영됩니다.</p></div>
+        <button type="button" className="primary-button" onClick={() => { setId(undefined); setTitle(""); setEditorOpen(true); }}>+ 일정 추가</button>
       </div>
       {message && (
         <p
@@ -205,19 +201,8 @@ export default function TimePlanner() {
           {message}
         </p>
       )}
-      <label className="soft-card flex items-start gap-3 p-4 text-sm leading-6">
-        <input
-          type="checkbox"
-          checked={confirmed}
-          disabled={busy}
-          onChange={(e) =>
-            void run(() => confirmDays(day, day, e.target.checked))
-          }
-        />
-        <span><strong className="block">이 날짜의 일정을 확인했어요</strong><span className="muted">체크하면 나의 빈 시간만 그룹에 공유됩니다. 제목과 근무 종류는 보이지 않아요.</span></span>
-      </label>
       <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-extrabold">하루 타임라인</h2><p className="muted mt-1 text-xs">한국 시간 기준 · 여러 일정을 등록할 수 있어요.</p></div><span className="rounded-full bg-[var(--brand-light)] px-3 py-1 text-xs font-bold text-[var(--brand)]">{events.length}개 일정</span></div>
-      {events.length === 0 && <p className="empty-state text-sm"><span className="text-2xl" aria-hidden="true">◷</span>아직 이 날짜에 등록한 일정이 없어요.<span>아래에서 근무 또는 약속 시간을 추가해 보세요.</span></p>}
+      {events.length === 0 && <p className="empty-state text-sm"><span className="text-2xl" aria-hidden="true">◷</span>아직 이 날짜에 등록한 일정이 없어요.<span>일정 추가 버튼으로 근무 또는 약속 시간을 등록해 보세요.</span></p>}
       <div className="max-h-[430px] overflow-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
         {Array.from({ length: 24 }, (_, hour) => {
           const from = `${day}T${String(hour).padStart(2, "0")}:00:00+09:00`;
@@ -266,17 +251,22 @@ export default function TimePlanner() {
           ))}
         </details>
       )}
+      {editorOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-5" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditorOpen(false); }}>
       <form
         id="new-event"
-        className="planner-form scroll-mt-6 rounded-2xl border border-[var(--line)] bg-[var(--surface-soft)] p-4 sm:p-5"
+        role="dialog"
+        aria-modal="true"
+        aria-label={id ? "일정 수정" : "새 일정 추가"}
+        className="planner-form max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-2xl sm:rounded-3xl"
         onSubmit={(e) => {
           e.preventDefault();
           void run(save);
         }}
       >
-        <h3 className="text-lg font-extrabold">{id ? "일정 수정" : "새 일정 추가"}</h3>
+        <div className="flex w-full items-center justify-between"><h3 className="text-lg font-extrabold">{day} · {id ? "일정 수정" : "새 일정 추가"}</h3><button type="button" className="ghost-button !min-h-9" aria-label="닫기" onClick={() => setEditorOpen(false)}>✕</button></div>
         <input
           aria-label="일정 제목"
+          autoFocus
           required
           maxLength={200}
           placeholder="일정 제목"
@@ -371,6 +361,7 @@ export default function TimePlanner() {
                   void run(async () => {
                     await deleteEvents(id, scope);
                     setId(undefined);
+                    setEditorOpen(false);
                   });
               }}
             >
@@ -389,6 +380,7 @@ export default function TimePlanner() {
           </>
         )}
       </form>
+      </div>}
       <details className="rounded-2xl border border-[var(--line)] p-4 sm:p-5">
         <summary className="cursor-pointer font-bold">
           순환 교대근무 일괄 등록
@@ -423,21 +415,6 @@ export default function TimePlanner() {
             className="primary-button"
           >
             순환 일정 추가
-          </button>
-          <button
-            disabled={busy}
-            onClick={() => {
-              if (
-                confirm(
-                  "선택 날짜부터 등록 일수 전체의 빈 시간을 공유할까요? 누락된 일정이 없는지 확인해주세요.",
-                )
-              )
-                void run(() =>
-                  confirmDays(day, addDays(day, cycleDays - 1), true),
-                );
-            }}
-          >
-            기간 전체 확인·공유
           </button>
         </div>
       </details>

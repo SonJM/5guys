@@ -20,7 +20,7 @@ type View = 'schedule' | 'group' | 'findDate' | 'ocr' | 'places'
 const views: { id: View; number: string; label: string; title: string; description: string }[] = [
   { id: 'schedule', number: '01', label: '내 일정', title: '내 시간 정리하기', description: '근무와 약속을 시간 단위로 기록하고, 빈 시간을 확인해 보세요.' },
   { id: 'group', number: '02', label: '그룹', title: '함께하는 사람들', description: '그룹을 만들고 구성원을 초대해 가능 시간만 공유하세요.' },
-  { id: 'findDate', number: '03', label: '가능 시간 찾기', title: '언제 만날까요?', description: '서로 확인한 빈 시간 중 모두에게 맞는 때를 찾아요.' },
+  { id: 'findDate', number: '03', label: '그룹 달력', title: '언제 만날까요?', description: '함께 비어 있는 시간을 달력에서 보고 여행과 약속을 계획해요.' },
   { id: 'ocr', number: '04', label: '근무표 가져오기', title: '사진에서 근무 일정으로', description: '달력 영역을 선택하고 인식 결과를 확인한 뒤 등록하세요.' },
   { id: 'places', number: '05', label: '장소 추천', title: '어디서 만날까요?', description: '약속 유형에 맞는 장소와 사람별 이동 시간을 비교해요.' },
 ]
@@ -48,6 +48,7 @@ export default function DashboardPage() {
     if (view === activeView) return
     setActiveView(view)
     const url = new URL(window.location.href)
+    url.searchParams.delete('plan')
     if (view === 'schedule') url.searchParams.delete('view')
     else url.searchParams.set('view', view)
     window.history.pushState(null, '', url)
@@ -89,8 +90,14 @@ export default function DashboardPage() {
     switch (activeView) {
       case 'schedule': return <TimePlanner />
       case 'group': return <GroupManager user={user!} selectedGroupId={selectedGroupId} setSelectedGroupId={setSelectedGroupId} />
-      case 'findDate': return <GroupAvailability groupId={selectedGroupId} />
-      case 'places': return <PlaceRecommendations />
+      case 'findDate': return <GroupAvailability groupId={selectedGroupId} onFindPlace={(planId) => {
+        const url = new URL(window.location.href)
+        url.searchParams.set('view', 'places')
+        url.searchParams.set('plan', planId)
+        window.history.pushState(null, '', url)
+        setActiveView('places')
+      }} />
+      case 'places': return <PlaceRecommendations groupId={selectedGroupId} />
       case 'ocr': return <OcrUploader />
     }
   }

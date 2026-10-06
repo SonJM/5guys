@@ -148,7 +148,7 @@ export default function OcrUploader() {
     if (working.length) await saveEvents(working);
     setRows([]);
     setMessage(
-      `${working.length}건의 근무를 등록했습니다. 휴무는 근무를 만들지 않습니다. 스케줄에서 누락된 약속을 확인한 뒤 가능 시간 공유를 켜주세요.`,
+      `${working.length}건의 근무를 등록했습니다. 휴무는 근무를 만들지 않습니다. 빈 시간은 그룹 달력에 자동 반영됩니다.`,
     );
   }
   return (

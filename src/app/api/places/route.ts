@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
           id: place.id,
           name: place.place_name,
           address: place.road_address_name || place.address_name,
-          url: place.place_url,
+          url: place.place_url.replace(/^http:\/\//, "https://"),
           journeys,
           reason: "",
         };

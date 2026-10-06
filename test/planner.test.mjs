@@ -15,7 +15,7 @@ const { shiftTimes, addDays, validDay, parseOcrRows, overlaps, commonWindows } =
   await import(
     `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
   );
-test("common windows span midnight but reject gaps and unconfirmed members", () => {
+test("common windows span midnight and reject gaps", () => {
   const start = Date.parse("2026-09-29T23:30:00+09:00");
   const rows = ["a", "b"].flatMap((user_id) =>
     Array.from({ length: 4 }, (_, i) => ({
@@ -34,13 +34,7 @@ test("common windows span midnight but reject gaps and unconfirmed members", () 
     ).length,
     0,
   );
-  assert.equal(
-    commonWindows(
-      rows.map((r) => (r.user_id === "b" ? { ...r, confirmed: false } : r)),
-      2,
-    ).length,
-    0,
-  );
+  assert.equal(commonWindows(rows.map((r) => ({ ...r, confirmed: false })), 2).length, 1);
   assert.equal(commonWindows(rows, 0.75).length, 0);
 });
 test("overnight shifts cross month/year boundaries in Korean time", () => {

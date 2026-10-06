@@ -33,7 +33,7 @@ export default function LoginPage() {
           <p className="eyebrow">WELCOME BACK</p>
           <h1 className="mt-4 text-5xl font-black leading-tight tracking-tight">모두의 시간이<br /><span className="text-[var(--brand)]">만나는 곳</span></h1>
           <p className="muted mt-6 max-w-sm leading-8">바쁜 근무표 사이에서도 함께할 시간을 찾을 수 있도록. 로그인하고 우리의 다음 약속을 이어가세요.</p>
-          <div className="soft-card mt-10 max-w-sm p-6"><p className="text-sm font-extrabold">내 일정은 내 방식대로</p><p className="muted mt-2 text-sm leading-6">그룹에는 확인한 가능 시간만 공유돼요. 근무 종류와 약속 제목은 기본적으로 공개되지 않습니다.</p></div>
+          <div className="soft-card mt-10 max-w-sm p-6"><p className="text-sm font-extrabold">내 일정은 내 방식대로</p><p className="muted mt-2 text-sm leading-6">그룹에는 빈 시간만 자동으로 공유돼요. 근무 종류와 약속 제목은 공개되지 않습니다.</p></div>
         </div>
         <div className="surface-card w-full max-w-md justify-self-center p-6 sm:p-9">
           <p className="eyebrow">SIGN IN</p>

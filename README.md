@@ -1,6 +1,6 @@
 # 5총사 
 
-교대근무를 고려하여 친구·동료의 공통 가능 시간을 찾는 일정 서비스입니다. 개인 일정은 시간 단위로 등록하고, 그룹에는 각자가 확인한 날짜의 가능 시간만 공유합니다.
+교대근무를 고려하여 친구·동료의 공통 가능 시간을 찾는 일정 서비스입니다. 개인 일정은 시간 단위로 등록하고, 그룹에는 개인 일정 제목을 숨긴 채 빈 시간만 자동으로 공유합니다.
 
 ## 기능
 
@@ -14,7 +14,7 @@
 
 ## 로컬 실행
 
-Node.js 22가 필요합니다. Supabase 프로젝트의 URL·익명 키를 `.env.local`의 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`에 설정하고 `npm ci`, `npm run dev`를 실행합니다. 새 일정 기능에는 [Supabase 마이그레이션](supabase/migrations/202609290001_planner.sql)이 필요합니다.
+Node.js 22가 필요합니다. Supabase 프로젝트의 URL·익명 키를 `.env.local`의 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`에 설정하고 `npm ci`, `npm run dev`를 실행합니다. 신규 설치에는 [기본 일정 마이그레이션](supabase/migrations/202609290001_planner.sql)과 [그룹 달력 마이그레이션](supabase/migrations/202610060001_group_workspace.sql)을 순서대로 적용합니다. 기존 설치는 두 번째 마이그레이션만 적용합니다.
 
 Google, OCR, 장소 검색을 포함한 배포 순서와 필요한 서버 비밀키는 [배포 안내](docs/DEPLOYMENT.md)에 정리했습니다. Calendar API 활성화와 캘린더 접근 OAuth 동의는 각각 필요합니다. OCR용 Cloud Vision과 장소·길찾기 API는 별도 연결입니다.
 

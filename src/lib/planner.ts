@@ -45,7 +45,7 @@ export function commonWindows(rows: AvailabilitySlot[], hours: number) {
   );
   const available = new Set(
     rows
-      .filter((r) => r.available && r.confirmed)
+      .filter((r) => r.available)
       .map((r) => `${r.user_id}:${Date.parse(r.slot)}`),
   );
   const count = hours * 2;

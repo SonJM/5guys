@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { listGroupPlans, setGroupPlanPlace } from "@/app/group-plan-actions";
 type Candidate = {
   id: string;
   name: string;
@@ -15,7 +16,7 @@ type Candidate = {
     warning: string;
   }[];
 };
-export default function PlaceRecommendations() {
+export default function PlaceRecommendations({ groupId }: { groupId: number | null }) {
   const [type, setType] = useState("cafe");
   const [region, setRegion] = useState("");
   const [people, setPeople] = useState([
@@ -24,6 +25,27 @@ export default function PlaceRecommendations() {
   const [results, setResults] = useState<Candidate[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [targetPlan, setTargetPlan] = useState<{ id: string; title: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setTargetPlan(null);
+    const id = new URLSearchParams(window.location.search).get("plan");
+    if (!id || !groupId) return;
+    listGroupPlans(groupId).then(({ plans, isOwner }) => {
+      const plan = plans.find((p) => p.id === id);
+      if (alive && plan && isOwner) setTargetPlan({ id, title: plan.title });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [groupId]);
+  async function savePlace(candidate: Candidate) {
+    if (!targetPlan || !groupId) return;
+    setBusy(true);
+    try {
+      await setGroupPlanPlace(targetPlan.id, groupId, candidate.name, candidate.url);
+      setMessage(`${targetPlan.title}의 장소를 ${candidate.name}(으)로 저장했습니다.`);
+    } catch (e) { setMessage((e as Error).message); }
+    finally { setBusy(false); }
+  }
   async function search() {
     setBusy(true);
     setMessage("");
@@ -53,6 +75,7 @@ export default function PlaceRecommendations() {
         국내 장소를 검색하고 구성원별 이동 시간을 비교합니다. 출발지는 이번
         검색에만 사용하며 그룹에 저장하지 않습니다.
       </p>
+      {targetPlan && <p className="status-note">그룹 계획 「{targetPlan.title}」의 장소를 정하고 있어요. 추천 결과에서 장소를 선택하세요.</p>}
       <form
         className="space-y-4"
         onSubmit={(e) => {
@@ -171,6 +194,7 @@ export default function PlaceRecommendations() {
               {p.name} ↗
             </a>
           </h3>
+          {targetPlan && <button type="button" disabled={busy} className="primary-button !min-h-9" onClick={() => void savePlace(p)}>이 장소를 그룹 계획에 저장</button>}
           <p className="muted text-sm">{p.address}</p>
           {p.reason && <p className="text-sm">{p.reason}</p>}
           <ul className="space-y-2">

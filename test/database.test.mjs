@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
-test("migration enforces private events and exposes confirmed availability only", async () => {
+test("migration enforces private events and derives availability for every group", async () => {
   const db = new PGlite();
   const a = "00000000-0000-0000-0000-000000000001",
     b = "00000000-0000-0000-0000-000000000002",
@@ -31,7 +31,14 @@ test("migration enforces private events and exposes confirmed availability only"
       "utf8",
     ),
   );
+  await db.exec(
+    await readFile(
+      new URL("../supabase/migrations/202610060001_group_workspace.sql", import.meta.url),
+      "utf8",
+    ),
+  );
   await db.exec(`set role authenticated;set request.jwt.claim.sub='${a}';`);
+  assert.equal((await db.query("select planner_rate_limit('google-sync',60) as allowed")).rows[0].allowed, true);
   const group = (await db.query(`select planner_create_group('Test') as id`))
     .rows[0].id;
   await db.exec(`insert into group_members values(${group},'${b}');`);
@@ -95,10 +102,20 @@ test("migration enforces private events and exposes confirmed availability only"
   );
   assert.equal(
     slots.filter((r) => r.user_id === a).some((r) => r.available),
-    false,
+    true,
   );
   assert.equal(slots.filter((r) => r.user_id === b && r.available).length, 34);
+  assert.equal((await db.query(`select common_slots from group_month_availability(${group},'2026-09-29','2026-09-29')`)).rows[0].common_slots, 34);
+  await db.exec(`set request.jwt.claim.sub='${a}';`);
+  const plan = (await db.query(`insert into group_plans(group_id,created_by,title,kind,starts_at,ends_at) values(${group},'${a}','Private titles stay inside the group','meetup','2026-09-29T18:00:00+09:00','2026-09-29T20:00:00+09:00') returning id`)).rows[0].id;
+  await db.exec(`set request.jwt.claim.sub='${b}';`);
+  await db.exec(`insert into group_plan_votes(plan_id,user_id,vote) values('${plan}','${b}','yes');`);
+  assert.equal((await db.query(`update group_plans set status='confirmed' where id='${plan}' returning id`)).rows.length, 0);
+  await db.exec(`set request.jwt.claim.sub='${a}';`);
+  await db.exec(`update group_plans set status='confirmed' where id='${plan}'`);
+  assert.equal((await db.query(`select common_slots from group_month_availability(${group},'2026-09-29','2026-09-29')`)).rows[0].common_slots, 30);
   await db.exec(`set request.jwt.claim.sub='${c}';`);
+  assert.equal((await db.query(`select * from group_plans`)).rows.length, 0);
   assert.equal(
     (await db.query(`select * from group_members where group_id=${group}`)).rows
       .length,

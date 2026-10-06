@@ -10,7 +10,7 @@ import {
 export async function loadPlanner(from: string, to: string) {
   const { db, user } = await session();
   if (!validDay(from) || !validDay(to)) throw new Error("날짜를 확인해주세요.");
-  const [events, patterns, coverage, legacy] = await Promise.all([
+  const [events, patterns, legacy] = await Promise.all([
     db
       .from("planner_events")
       .select("*")
@@ -25,26 +25,19 @@ export async function loadPlanner(from: string, to: string) {
       .eq("user_id", user.id)
       .order("label"),
     db
-      .from("planner_coverage")
-      .select("day")
-      .eq("user_id", user.id)
-      .gte("day", from)
-      .lte("day", to),
-    db
       .from("schedules")
       .select("date,status,event_title")
       .eq("user_id", user.id)
       .gte("date", from)
       .lte("date", to),
   ]);
-  if (events.error || patterns.error || coverage.error)
+  if (events.error || patterns.error)
     throw new Error(
       "시간 일정 기능의 DB 업데이트가 필요합니다. 관리자에게 문의해주세요.",
     );
   return {
     events: events.data as PlannerEvent[],
     patterns: patterns.data as ShiftPattern[],
-    coverage: coverage.data.map((c) => c.day as string),
     legacy: legacy.data ?? [],
   };
 }
@@ -153,37 +146,6 @@ export async function updateSeries(
     }),
   );
 }
-export async function confirmDays(
-  from: string,
-  to: string,
-  confirmed: boolean,
-) {
-  const { db, user } = await session();
-  const days = (Date.parse(to) - Date.parse(from)) / 86400000;
-  if (
-    !validDay(from) ||
-    !validDay(to) ||
-    !Number.isInteger(days) ||
-    days < 0 ||
-    days > 365
-  )
-    throw new Error("확인 범위는 최대 366일입니다.");
-  const result = confirmed
-    ? await db.from("planner_coverage").upsert(
-        Array.from({ length: days + 1 }, (_, i) => ({
-          user_id: user.id,
-          day: addDays(from, i),
-        })),
-      )
-    : await db
-        .from("planner_coverage")
-        .delete()
-        .eq("user_id", user.id)
-        .gte("day", from)
-        .lte("day", to);
-  if (result.error)
-    throw new Error("가능 시간 공유 설정을 저장하지 못했습니다.");
-}
 export async function savePattern(pattern: Partial<ShiftPattern>) {
   const { db, user } = await session();
   if (
@@ -242,6 +204,19 @@ export async function availability(group: number, day: string) {
     available: boolean;
     confirmed: boolean;
   }[];
+}
+
+export async function availabilityMonth(group: number, from: string, to: string) {
+  const { db } = await session();
+  if (!Number.isSafeInteger(group) || !validDay(from) || !validDay(to) || Date.parse(to) < Date.parse(from) || Date.parse(to) - Date.parse(from) > 41 * 86400000)
+    throw new Error("그룹과 달력 범위를 확인해주세요.");
+  const { data, error } = await db.rpc("group_month_availability", {
+    target_group: group,
+    first_day: from,
+    last_day: to,
+  });
+  if (error) throw new Error("그룹 달력 DB 업데이트가 필요합니다.");
+  return data as { day: string; common_slots: number; member_count: number }[];
 }
 
 export async function availabilityRange(

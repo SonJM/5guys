@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 const features = [
   { number: '01', title: '내 시간을 한눈에', detail: '교대 근무와 약속을 시간 단위로 정리하고, 근무표 사진도 일정으로 옮겨요.' },
-  { number: '02', title: '함께 가능한 순간 찾기', detail: '일정 제목은 숨긴 채, 서로 확인한 빈 시간만 안전하게 비교해요.' },
+  { number: '02', title: '함께 가능한 순간 찾기', detail: '일정 제목은 숨긴 채, 그룹 달력에서 서로의 빈 시간을 안전하게 비교해요.' },
   { number: '03', title: '만날 곳까지 자연스럽게', detail: '카페·식사·여행 목적에 맞춰 장소와 사람별 이동 시간을 살펴봐요.' },
 ]
 
