@@ -50,18 +50,22 @@ export default function GroupAvailability({
     ...new Map(rows.map((r) => [r.user_id, r.username])).entries(),
   ];
   const matches = commonWindows(rows, duration);
+  const dayMatches = matches.filter((window) => localInput(window.start).slice(0, 10) === day);
   return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-extrabold">그룹의 공통 가능 시간</h2>
-      <p className="muted text-sm leading-6">
-        근무 종류와 약속 제목은 공유하지 않습니다. 등록된 일정에서 빈 시간을 자동 계산합니다. 일정이 없는 날은 가능으로 표시되므로 각자의 일정 최신 상태를 확인해 주세요. 한국 시간 기준입니다.
-      </p>
+    <section className="min-w-0 space-y-4">
+      <div className="hidden sm:block"><h2 className="text-xl font-extrabold">그룹의 공통 가능 시간</h2><p className="muted mt-2 text-sm">일정 제목은 숨기고 가능한 시간만 공유합니다.</p></div>
       {!groupId && <p className="empty-state text-sm">아직 선택된 그룹이 없어요.<span>먼저 그룹 메뉴에서 새 그룹을 만들거나 참여해 주세요.</span></p>}
-      {groupId && <MonthGrid month={month} selectedDay={day} onMonthChange={(next) => { setMonth(next); setDay(`${next}-01`); setLastDay(`${next}-01`); }} onSelect={(date) => { setDay(date); setLastDay(date); setMonth(date.slice(0, 7)); }} badge={(date) => {
-        const summary = monthRows.find((row) => row.day === date);
-        return summary ? <span className="text-[10px] font-semibold text-[var(--brand)]">공통 {summary.common_slots / 2}시간</span> : null;
-      }} />}
-      <p className="muted text-xs">달력의 시간은 모든 구성원이 함께 비어 있는 시간의 합계입니다. 날짜를 누르면 구성원별 시간표를 볼 수 있어요.</p>
+      {groupId && <div className="min-w-0 px-1 py-2 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:bg-[var(--surface)] sm:p-5"><MonthGrid month={month} selectedDay={day} onMonthChange={(next) => { setMonth(next); setDay(`${next}-01`); setLastDay(`${next}-01`); }} onSelect={(date) => { setDay(date); setLastDay(date); setMonth(date.slice(0, 7)); }} tone={(date) => {
+        const slots = monthRows.find((row) => row.day === date)?.common_slots ?? 0;
+        return slots >= duration * 2 ? "brand" : slots > 0 ? "partial" : undefined;
+      }} description={(date) => {
+        const slots = monthRows.find((row) => row.day === date)?.common_slots;
+        return slots === undefined ? undefined : `공통 가능 ${slots / 2}시간`;
+      }} /><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 px-2 text-[11px] font-semibold text-[var(--muted)]"><span><span className="text-[var(--brand)]">●</span> 모두 가능</span><span><span className="text-amber-500">●</span> 일부 가능</span><span>○ 일정 있음</span></div></div>}
+      {groupId && <div className="space-y-3 px-1 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:bg-[var(--surface)] sm:p-5"><div className="flex items-center justify-between gap-2"><h3 className="text-base font-extrabold">{new Date(`${day}T00:00:00+09:00`).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long" })}</h3><span className="text-xs font-bold text-[var(--brand)]">{members.length}명 참여</span></div>{dayMatches.length ? <div className="rounded-2xl bg-[var(--brand-light)] p-4"><strong className="text-lg text-[var(--brand)]">{localInput(dayMatches[0].start).slice(11)}–{localInput(dayMatches[0].end).slice(11)}</strong><p className="mt-1 text-xs text-[var(--foreground)]">모두 함께 비어 있는 시간이에요.</p></div> : <p className="rounded-2xl bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">선택한 날짜에 조건에 맞는 공통 시간이 없어요.</p>}<p className="muted text-xs">근무 종류와 약속 제목은 다른 구성원에게 표시하지 않습니다.</p></div>}
+      <details className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5">
+        <summary className="cursor-pointer text-sm font-bold">기간·약속 길이 조정 및 구성원별 시간표</summary>
+        <p className="muted mt-2 text-xs">최대 14일 범위에서 연속 시간을 찾습니다. 일정이 없는 날은 가능한 시간으로 계산되므로 각자의 최신 일정을 확인해 주세요.</p>
       <div className="planner-form rounded-2xl bg-[var(--surface-soft)] p-4">
         <input
           aria-label="약속 날짜"
@@ -145,6 +149,7 @@ export default function GroupAvailability({
       <p className="muted text-xs">
         초록: 가능 · 회색: 불가능 · 칸당 30분
       </p>
+      </details>
       <div><h3 className="mb-3 text-base font-extrabold">추천 가능한 시간 <span className="text-[var(--brand)]">{matches.length}</span></h3><div className="flex flex-wrap gap-2">
         {matches.slice(0, 60).map((s) => (
           <button type="button" onClick={() => { setSuggested(s); document.getElementById("group-plan-form")?.scrollIntoView({ behavior: "smooth", block: "center" }); }} title="이 시간을 그룹 계획 후보로 사용"

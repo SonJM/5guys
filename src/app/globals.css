@@ -104,4 +104,25 @@ textarea { resize: vertical; }
 .dark .rdp-day_workC { background: #70533b; color: #ffedda; }
 @media (max-width: 640px) { .rdp { --rdp-day-width: min(11vw, 42px); --rdp-day-height: 40px; max-width: 100%; } }
 
+.calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.calendar-days > span { min-width: 0; padding-block: 3px; }
+.calendar-month-button { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 12px; color: var(--muted); font-size: 28px; line-height: 1; transition: background .18s ease, transform .18s ease; }
+.calendar-month-button:hover { background: var(--surface-soft); transform: scale(1.04); }
+.calendar-day { display: flex; min-width: 0; min-height: 52px; flex-direction: column; align-items: center; justify-content: center; gap: 5px; border-radius: 13px; color: var(--foreground); font-size: 13px; font-weight: 700; transition: background .18s ease, color .18s ease, transform .18s ease; }
+.calendar-day:hover { background: var(--surface-soft); transform: translateY(-1px); }
+.calendar-day:active { transform: scale(.94); }
+.calendar-day-marked { background: var(--brand-light); }
+.calendar-day-selected, .calendar-day-selected:hover { background: var(--brand); color: white; }
+.calendar-day-outside { opacity: .38; }
+.calendar-dot { width: 5px; height: 5px; border-radius: 50%; }
+.calendar-today { text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.mobile-tab { display: grid; width: 62px; height: 48px; place-items: center; border-radius: 16px; color: var(--muted); transition: color .18s ease, background .18s ease, transform .18s ease; }
+.mobile-tab:hover { color: var(--brand); background: var(--brand-light); }
+.mobile-tab:active { transform: scale(.92); }
+.mobile-tab[aria-current="page"] { color: var(--brand); background: var(--brand-light); }
+.mobile-screen-enter { animation: mobile-screen-enter .24s ease-out both; }
+@keyframes mobile-screen-enter { from { opacity: .7; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (min-width: 640px) { .calendar-days { gap: 7px; } .calendar-day { min-height: 70px; font-size: 14px; } }
+@media (max-width: 639px) { .month-grid { width: 100%; } .calendar-days { gap: 2px; } .calendar-day { min-height: clamp(42px, 12vw, 54px); } }
+
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }

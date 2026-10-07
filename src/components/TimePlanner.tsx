@@ -183,15 +183,43 @@ export default function TimePlanner() {
     if (rows.length) await saveEvents(rows);
     setMessage("순환 근무를 등록했습니다. 빈 시간은 그룹 달력에 자동 반영됩니다.");
   }
+  const selectedLabel = new Date(`${day}T00:00:00+09:00`).toLocaleDateString("ko-KR", {
+    timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long",
+  });
+  const sortedEvents = [...events].sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
+  const eventSummary = (date: string) => monthEvents.filter((event) =>
+    Date.parse(event.starts_at) < Date.parse(`${addDays(date, 1)}T00:00:00+09:00`) &&
+    Date.parse(event.ends_at) > Date.parse(`${date}T00:00:00+09:00`)
+  );
   return (
-    <section className="space-y-5">
-      <MonthGrid month={month} selectedDay={day} onMonthChange={(next) => { setMonth(next); setDay(`${next}-01`); setId(undefined); }} onSelect={(date) => { setDay(date); setMonth(date.slice(0, 7)); setId(undefined); }} badge={(date) => {
-        const count = monthEvents.filter((event) => Date.parse(event.starts_at) < Date.parse(`${addDays(date, 1)}T00:00:00+09:00`) && Date.parse(event.ends_at) > Date.parse(`${date}T00:00:00+09:00`)).length;
-        return count ? <span className="rounded-full bg-[var(--accent-soft)] px-1.5 text-[10px] font-bold text-[var(--accent-ink)]">{count}건</span> : null;
-      }} />
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[var(--surface-soft)] p-3 sm:p-4">
-        <div><strong>{day} 일정</strong><p className="muted text-xs">빈 시간은 소속 그룹에 자동 반영됩니다.</p></div>
-        <button type="button" className="primary-button" onClick={() => { setId(undefined); setTitle(""); setEditorOpen(true); }}>+ 일정 추가</button>
+    <section className="space-y-4 sm:space-y-5">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(290px,1fr)]">
+        <div className="min-w-0 px-1 py-2 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:bg-[var(--surface)] sm:p-5 xl:p-6">
+          <MonthGrid month={month} selectedDay={day} onMonthChange={(next) => { setMonth(next); setDay(`${next}-01`); setId(undefined); }} onSelect={(date) => { setDay(date); setMonth(date.slice(0, 7)); setId(undefined); }} tone={(date) => {
+            const items = eventSummary(date);
+            return items.some((event) => event.kind === "appointment") ? "accent" : items.length ? "brand" : undefined;
+          }} description={(date) => `${eventSummary(date).length}개 일정`} />
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 px-2 text-[11px] font-semibold text-[var(--muted)]">
+            <span><span className="text-[var(--brand)]">●</span> 근무</span>
+            <span><span className="text-[var(--accent)]">●</span> 약속</span>
+            <span>○ 빈 시간</span>
+          </div>
+          <p className="muted mt-4 hidden rounded-xl bg-[var(--brand-light)] px-4 py-3 text-xs text-[var(--brand)] sm:block">그룹에는 일정 제목 대신 가능한 시간만 자동으로 공유돼요.</p>
+        </div>
+        <div className="min-w-0 space-y-3 px-1 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:bg-[var(--surface)] sm:p-5 xl:p-6">
+          <div className="flex items-start justify-between gap-2">
+            <div><h2 className="text-base font-extrabold sm:text-lg">{selectedLabel}</h2><p className="muted mt-1 text-xs">오늘의 일정 {events.length}개</p></div>
+            <button type="button" className="text-sm font-extrabold text-[var(--brand)] sm:hidden" onClick={() => { setId(undefined); setTitle(""); setEditorOpen(true); }}>+ 일정</button>
+          </div>
+          {sortedEvents.length ? sortedEvents.map((event) => (
+            <button key={event.id} type="button" onClick={() => edit(event)} className="flex w-full items-center gap-3 rounded-2xl bg-[var(--surface)] px-4 py-3 text-left shadow-sm ring-1 ring-[var(--line)] transition-transform active:scale-[.98] sm:bg-[var(--surface-soft)] sm:shadow-none">
+              <span className={`h-9 w-1 shrink-0 rounded-full ${event.kind === "appointment" ? "bg-[var(--accent)]" : event.kind === "work" ? "bg-[var(--brand)]" : "bg-slate-400"}`} aria-hidden="true" />
+              <span className="min-w-0"><span className="block truncate text-sm font-bold">{event.title}</span><span className="muted mt-0.5 block text-xs">{localInput(event.starts_at).slice(11)}–{localInput(event.ends_at).slice(11)}{dayString(new Date(event.starts_at)) !== dayString(new Date(event.ends_at)) && " (+1일)"}{event.sync_state === "conflict" && " · Google 충돌"}</span></span>
+            </button>
+          )) : <p className="rounded-2xl bg-[var(--surface-soft)] px-4 py-6 text-center text-sm text-[var(--muted)]">이날은 등록된 일정이 없어요.<br />새 일정을 추가하거나 빈 시간으로 활용해 보세요.</p>}
+          <button type="button" className="primary-button hidden w-full sm:inline-flex" onClick={() => { setId(undefined); setTitle(""); setEditorOpen(true); }}>+ 새 일정</button>
+          <p className="muted text-xs sm:hidden">빈 시간은 소속 그룹에 자동 반영됩니다.</p>
+        </div>
       </div>
       {message && (
         <p
@@ -201,9 +229,10 @@ export default function TimePlanner() {
           {message}
         </p>
       )}
-      <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-extrabold">하루 타임라인</h2><p className="muted mt-1 text-xs">한국 시간 기준 · 여러 일정을 등록할 수 있어요.</p></div><span className="rounded-full bg-[var(--brand-light)] px-3 py-1 text-xs font-bold text-[var(--brand)]">{events.length}개 일정</span></div>
-      {events.length === 0 && <p className="empty-state text-sm"><span className="text-2xl" aria-hidden="true">◷</span>아직 이 날짜에 등록한 일정이 없어요.<span>일정 추가 버튼으로 근무 또는 약속 시간을 등록해 보세요.</span></p>}
-      <div className="max-h-[430px] overflow-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+      <details className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5">
+        <summary className="cursor-pointer text-sm font-bold">시간별 타임라인 보기</summary>
+        <p className="muted mt-2 text-xs">한국 시간 기준 · 일정을 눌러 수정할 수 있어요.</p>
+      <div className="mt-4 max-h-[430px] overflow-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
         {Array.from({ length: 24 }, (_, hour) => {
           const from = `${day}T${String(hour).padStart(2, "0")}:00:00+09:00`;
           const to = Date.parse(from) + 3600000;
@@ -240,6 +269,7 @@ export default function TimePlanner() {
           );
         })}
       </div>
+      </details>
       {legacy.length > 0 && (
         <details className="text-sm">
           <summary>기존 날짜형 일정 {legacy.length}건 · 시간 확인 필요</summary>
