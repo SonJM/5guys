@@ -19,7 +19,7 @@
 | GOOGLE_TOKEN_ENCRYPTION_KEY                              | 32바이트 난수의 base64. 토큰 암호화에 사용하며 변경하면 재연결 필요                                |
 | CRON_SECRET                                              | Vercel 예약 동기화 인증용 충분히 긴 난수                                                           |
 | GOOGLE_VISION_API_KEY                                    | Cloud Vision API 활성화 및 결제·할당량 설정 필요. Calendar API와 별도. 서버 키를 Vision API로 제한 |
-| DEEPSEEK_API_KEY                                         | 기존 키 재사용: OCR 구조 분석 및 장소 설명                                                         |
+| OPENAI_API_KEY                                           | 서버 전용: OCR 구조 분석 및 장소 설명. API 프로젝트의 크레딧·사용 한도 확인, NEXT_PUBLIC 접두사 금지 |
 | KAKAO_REST_API_KEY                                       | 국내 장소·출발지 검색                                                                              |
 | KAKAO_MOBILITY_API_KEY                                   | 자동차 길찾기 API                                                                                  |
 | ODSAY_API_KEY                                            | 서버용 대중교통 길찾기 API                                                                         |
