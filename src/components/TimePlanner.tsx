@@ -1,8 +1,8 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   deleteEvents,
-  loadPlanner,
+  loadCalendarMonth,
   saveEvents,
   updateSeries,
 } from "@/app/planner-actions";
@@ -14,17 +14,17 @@ import {
   shiftTimes,
   type PlannerEvent,
 } from "@/lib/planner";
-import MonthGrid, { monthBounds } from "@/components/MonthGrid";
+import MonthGrid from "@/components/MonthGrid";
+
+type MonthData = Awaited<ReturnType<typeof loadCalendarMonth>>;
 
 export default function TimePlanner() {
   const [day, setDay] = useState(dayString());
   const [month, setMonth] = useState(dayString().slice(0, 7));
-  const [monthEvents, setMonthEvents] = useState<PlannerEvent[]>([]);
+  const [monthData, setMonthData] = useState<MonthData | null>(null);
+  const [loadingMonth, setLoadingMonth] = useState(true);
+  const [revision, setRevision] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [events, setEvents] = useState<PlannerEvent[]>([]);
-  const [legacy, setLegacy] = useState<
-    { date: string; status: string; event_title: string | null }[]
-  >([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [id, setId] = useState<string>();
@@ -39,39 +39,34 @@ export default function TimePlanner() {
   const [interval, setInterval] = useState(1);
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const requestVersion = useRef(0);
-  const reload = useCallback(async () => {
-    const version = ++requestVersion.current;
-    try {
-      const data = await loadPlanner(day, day);
-      if (version !== requestVersion.current) return;
-      setEvents(data.events);
-      setLegacy(data.legacy);
-    } catch (e) {
-      if (version !== requestVersion.current) return;
-      setMessage((e as Error).message);
-    }
-  }, [day]);
-  const reloadMonth = useCallback(async () => {
-    const { first, last } = monthBounds(month);
-    try {
-      const data = await loadPlanner(first, last);
-      setMonthEvents(data.events);
-    } catch (e) {
-      setMessage((e as Error).message);
-    }
-  }, [month]);
+  const monthCache = useRef(new Map<string, MonthData>());
   useEffect(() => {
-    void reload();
-  }, [reload]);
-  useEffect(() => { void reloadMonth(); }, [reloadMonth]);
+    const requestCounter = requestVersion;
+    const version = ++requestCounter.current;
+    const cached = monthCache.current.get(month);
+    setMonthData(cached ?? null);
+    setLoadingMonth(!cached);
+    if (cached) return;
+    void loadCalendarMonth(month).then((data) => {
+      if (version !== requestCounter.current) return;
+      monthCache.current.set(month, data);
+      if (monthCache.current.size > 6) monthCache.current.delete(monthCache.current.keys().next().value!);
+      setMonthData(data);
+    }).catch((error) => {
+      if (version === requestCounter.current) setMessage((error as Error).message);
+    }).finally(() => {
+      if (version === requestCounter.current) setLoadingMonth(false);
+    });
+    return () => { if (requestCounter.current === version) requestCounter.current++; };
+  }, [month, revision]);
   useEffect(() => {
     const listener = () => {
-      void reload();
-      void reloadMonth();
+      monthCache.current.clear();
+      setRevision((value) => value + 1);
     };
     window.addEventListener("planner-synced", listener);
     return () => window.removeEventListener("planner-synced", listener);
-  }, [reload, reloadMonth]);
+  }, []);
   useEffect(() => {
     if (!editorOpen) return;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setEditorOpen(false); };
@@ -83,10 +78,10 @@ export default function TimePlanner() {
     setMessage("");
     try {
       await task();
-      await reload();
-      await reloadMonth();
+      monthCache.current.clear();
+      setRevision((value) => value + 1);
       window.dispatchEvent(new Event('planner-local-change'));
-      setMessage("저장했습니다. Google Calendar에도 자동 반영됩니다.");
+      setMessage("저장했습니다.");
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -123,7 +118,7 @@ export default function TimePlanner() {
     const original = events.find((e) => e.id === id);
     if (original?.all_day)
       throw new Error(
-        "Google 종일 일정은 Google Calendar에서 수정해주세요. 시간 일정은 별도로 추가할 수 있습니다.",
+        "가져온 종일 일정은 원본 달력에서 수정해주세요. 시간 일정은 별도로 추가할 수 있습니다.",
       );
     const series =
       original?.series_id ?? (days.length > 1 ? crypto.randomUUID() : null);
@@ -148,6 +143,12 @@ export default function TimePlanner() {
   const selectedLabel = new Date(`${day}T00:00:00+09:00`).toLocaleDateString("ko-KR", {
     timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long",
   });
+  const monthEvents = monthData?.month === month ? monthData.events : [];
+  const events = monthEvents.filter((event) =>
+    Date.parse(event.starts_at) < Date.parse(`${addDays(day, 1)}T00:00:00+09:00`) &&
+    Date.parse(event.ends_at) > Date.parse(`${day}T00:00:00+09:00`)
+  );
+  const legacy = monthData?.month === month ? monthData.legacy.filter((event) => event.date === day) : [];
   const sortedEvents = [...events].sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
   const eventSummary = (date: string) => monthEvents.filter((event) =>
     Date.parse(event.starts_at) < Date.parse(`${addDays(date, 1)}T00:00:00+09:00`) &&
@@ -170,15 +171,15 @@ export default function TimePlanner() {
         </div>
         <div className="min-w-0 space-y-3 px-1 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:bg-[var(--surface)] sm:p-5 xl:p-6">
           <div className="flex items-start justify-between gap-2">
-            <div><h2 className="text-base font-extrabold sm:text-lg">{selectedLabel}</h2><p className="muted mt-1 text-xs">오늘의 일정 {events.length}개</p></div>
+            <div><h2 className="text-base font-extrabold sm:text-lg">{selectedLabel}</h2><p className="muted mt-1 text-xs">{loadingMonth ? '일정을 불러오는 중…' : `선택한 날의 일정 ${events.length}개`}</p></div>
             <button type="button" className="text-sm font-extrabold text-[var(--brand)] sm:hidden" onClick={() => { setId(undefined); setTitle(""); setEditorOpen(true); }}>+ 일정</button>
           </div>
           {sortedEvents.length ? sortedEvents.map((event) => (
             <button key={event.id} type="button" onClick={() => edit(event)} className="flex w-full items-center gap-3 rounded-2xl bg-[var(--surface)] px-4 py-3 text-left shadow-sm ring-1 ring-[var(--line)] transition-transform active:scale-[.98] sm:bg-[var(--surface-soft)] sm:shadow-none">
               <span className={`h-9 w-1 shrink-0 rounded-full ${event.kind === "appointment" ? "bg-[var(--accent)]" : event.kind === "work" ? "bg-[var(--brand)]" : "bg-slate-400"}`} aria-hidden="true" />
-              <span className="min-w-0"><span className="block truncate text-sm font-bold">{event.title}</span><span className="muted mt-0.5 block text-xs">{localInput(event.starts_at).slice(11)}–{localInput(event.ends_at).slice(11)}{dayString(new Date(event.starts_at)) !== dayString(new Date(event.ends_at)) && " (+1일)"}{event.sync_state === "conflict" && " · Google 충돌"}</span></span>
+              <span className="min-w-0"><span className="block truncate text-sm font-bold">{event.title}</span><span className="muted mt-0.5 block text-xs">{localInput(event.starts_at).slice(11)}–{localInput(event.ends_at).slice(11)}{dayString(new Date(event.starts_at)) !== dayString(new Date(event.ends_at)) && " (+1일)"}{event.sync_state === "conflict" && " · 변경 충돌"}</span></span>
             </button>
-          )) : <p className="rounded-2xl bg-[var(--surface-soft)] px-4 py-6 text-center text-sm text-[var(--muted)]">이날은 등록된 일정이 없어요.<br />새 일정을 추가하거나 빈 시간으로 활용해 보세요.</p>}
+          )) : loadingMonth ? <p role="status" className="rounded-2xl bg-[var(--surface-soft)] px-4 py-6 text-center text-sm text-[var(--muted)]">일정을 불러오는 중이에요…</p> : <p className="rounded-2xl bg-[var(--surface-soft)] px-4 py-6 text-center text-sm text-[var(--muted)]">이날은 등록된 일정이 없어요.<br />새 일정을 추가하거나 빈 시간으로 활용해 보세요.</p>}
           <button type="button" className="primary-button hidden w-full sm:inline-flex" onClick={() => { setId(undefined); setTitle(""); setEditorOpen(true); }}>+ 새 일정</button>
           <p className="muted text-xs sm:hidden">빈 시간은 소속 그룹에 자동 반영됩니다.</p>
         </div>
@@ -223,7 +224,7 @@ export default function TimePlanner() {
                     {localInput(e.ends_at).slice(11)}
                     {dayString(new Date(e.starts_at)) !==
                       dayString(new Date(e.ends_at)) && " (+1일)"}
-                    {e.sync_state === "conflict" && " · Google 충돌"}
+                    {e.sync_state === "conflict" && " · 변경 충돌"}
                   </button>
                 ))}
               </div>
@@ -349,7 +350,7 @@ export default function TimePlanner() {
               onClick={() => {
                 if (
                   confirm(
-                    "선택한 범위의 일정을 삭제할까요? Google 연결 시 삭제도 반영됩니다.",
+                    "선택한 범위의 일정을 삭제할까요? 연결된 달력에도 삭제가 반영됩니다.",
                   )
                 )
                   void run(async () => {

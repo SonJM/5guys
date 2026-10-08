@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { availability, availabilityMonth, availabilityRange } from "@/app/planner-actions";
 import { commonWindows, dayString, localInput } from "@/lib/planner";
 import MonthGrid, { monthBounds } from "@/components/MonthGrid";
@@ -20,32 +20,52 @@ export default function GroupAvailability({
   );
   const [message, setMessage] = useState("");
   const [monthRows, setMonthRows] = useState<Awaited<ReturnType<typeof availabilityMonth>>>([]);
+  const [monthLoading, setMonthLoading] = useState(false);
+  const [rowsLoading, setRowsLoading] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const monthCache = useRef(new Map<string, Awaited<ReturnType<typeof availabilityMonth>>>());
   const [suggested, setSuggested] = useState<{ start: string; end: string } | null>(null);
   useEffect(() => {
     let alive = true;
-    setMonthRows([]);
+    const key = `${groupId}:${month}`;
+    const cached = monthCache.current.get(key);
+    setMonthRows(cached ?? []);
+    setMonthLoading(!!groupId && !cached);
     if (groupId) {
-      const { first, last } = monthBounds(month);
-      availabilityMonth(groupId, first, last).then((data) => { if (alive) setMonthRows(data); }).catch((e) => { if (alive) setMessage(e.message); });
+      if (!cached) {
+        const { first, last } = monthBounds(month);
+        availabilityMonth(groupId, first, last).then((data) => {
+          if (!alive) return;
+          monthCache.current.set(key, data);
+          if (monthCache.current.size > 6) monthCache.current.delete(monthCache.current.keys().next().value!);
+          setMonthRows(data);
+        }).catch((e) => { if (alive) setMessage(e.message); }).finally(() => { if (alive) setMonthLoading(false); });
+      }
     }
     return () => { alive = false; };
-  }, [groupId, month]);
+  }, [groupId, month, revision]);
+  useEffect(() => {
+    const listener = () => { monthCache.current.clear(); setRevision((value) => value + 1); };
+    window.addEventListener('planner-synced', listener);
+    return () => window.removeEventListener('planner-synced', listener);
+  }, []);
   useEffect(() => {
     let alive = true;
     setRows([]);
+    setRowsLoading(!!groupId);
     setMessage("");
     if (groupId)
       availabilityRange(groupId, day, lastDay)
         .then((data) => {
-          if (alive) setRows(data);
+          if (alive) { setRows(data); setRowsLoading(false); }
         })
         .catch((e) => {
-          if (alive) setMessage(e.message);
+          if (alive) { setMessage(e.message); setRowsLoading(false); }
         });
     return () => {
       alive = false;
     };
-  }, [day, lastDay, groupId]);
+  }, [day, lastDay, groupId, revision]);
   const members = [
     ...new Map(rows.map((r) => [r.user_id, r.username])).entries(),
   ];
@@ -61,8 +81,8 @@ export default function GroupAvailability({
       }} description={(date) => {
         const slots = monthRows.find((row) => row.day === date)?.common_slots;
         return slots === undefined ? undefined : `공통 가능 ${slots / 2}시간`;
-      }} /><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 px-2 text-[11px] font-semibold text-[var(--muted)]"><span><span className="text-[var(--brand)]">●</span> 모두 가능</span><span><span className="text-amber-500">●</span> 일부 가능</span><span>○ 일정 있음</span></div></div>}
-      {groupId && <div className="space-y-3 px-1 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:bg-[var(--surface)] sm:p-5"><div className="flex items-center justify-between gap-2"><h3 className="text-base font-extrabold">{new Date(`${day}T00:00:00+09:00`).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long" })}</h3><span className="text-xs font-bold text-[var(--brand)]">{members.length}명 참여</span></div>{dayMatches.length ? <div className="rounded-2xl bg-[var(--brand-light)] p-4"><strong className="text-lg text-[var(--brand)]">{localInput(dayMatches[0].start).slice(11)}–{localInput(dayMatches[0].end).slice(11)}</strong><p className="mt-1 text-xs text-[var(--foreground)]">모두 함께 비어 있는 시간이에요.</p></div> : <p className="rounded-2xl bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">선택한 날짜에 조건에 맞는 공통 시간이 없어요.</p>}<p className="muted text-xs">근무 종류와 약속 제목은 다른 구성원에게 표시하지 않습니다.</p></div>}
+      }} />{monthLoading && <p role="status" className="muted mt-3 px-2 text-xs">그룹 달력을 불러오는 중이에요…</p>}<div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 px-2 text-[11px] font-semibold text-[var(--muted)]"><span><span className="text-[var(--brand)]">●</span> 모두 가능</span><span><span className="text-amber-500">●</span> 일부 가능</span><span>○ 일정 있음</span></div></div>}
+      {groupId && <div className="space-y-3 px-1 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:bg-[var(--surface)] sm:p-5"><div className="flex items-center justify-between gap-2"><h3 className="text-base font-extrabold">{new Date(`${day}T00:00:00+09:00`).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long" })}</h3><span className="text-xs font-bold text-[var(--brand)]">{rowsLoading ? '불러오는 중…' : `${members.length}명 참여`}</span></div>{rowsLoading ? <p role="status" className="rounded-2xl bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">가능 시간을 불러오는 중이에요…</p> : dayMatches.length ? <div className="rounded-2xl bg-[var(--brand-light)] p-4"><strong className="text-lg text-[var(--brand)]">{localInput(dayMatches[0].start).slice(11)}–{localInput(dayMatches[0].end).slice(11)}</strong><p className="mt-1 text-xs text-[var(--foreground)]">모두 함께 비어 있는 시간이에요.</p></div> : <p className="rounded-2xl bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">선택한 날짜에 조건에 맞는 공통 시간이 없어요.</p>}<p className="muted text-xs">근무 종류와 약속 제목은 다른 구성원에게 표시하지 않습니다.</p></div>}
       <details className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5">
         <summary className="cursor-pointer text-sm font-bold">기간·약속 길이 조정 및 구성원별 시간표</summary>
         <p className="muted mt-2 text-xs">최대 14일 범위에서 연속 시간을 찾습니다. 일정이 없는 날은 가능한 시간으로 계산되므로 각자의 최신 일정을 확인해 주세요.</p>

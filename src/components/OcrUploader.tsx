@@ -146,7 +146,10 @@ export default function OcrUploader() {
         ...shiftTimes(date, p),
       }));
     if (working.length) await saveEvents(working);
-    if (working.length) window.dispatchEvent(new Event('planner-local-change'));
+    if (working.length) {
+      window.dispatchEvent(new Event('planner-synced'));
+      window.dispatchEvent(new Event('planner-local-change'));
+    }
     setRows([]);
     setMessage(
       `${working.length}건의 근무를 등록했습니다. 휴무는 근무를 만들지 않습니다. 빈 시간은 그룹 달력에 자동 반영됩니다.`,

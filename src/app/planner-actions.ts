@@ -41,6 +41,33 @@ export async function loadPlanner(from: string, to: string) {
     legacy: legacy.data ?? [],
   };
 }
+export async function loadCalendarMonth(month: string) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('달력을 확인해주세요.');
+  const { db, user } = await session();
+  const first = `${month}-01`;
+  const next = new Date(`${first}T00:00:00Z`);
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  const nextMonth = next.toISOString().slice(0, 10);
+  const last = addDays(nextMonth, -1);
+  const legacyRequest = db.from('schedules')
+    .select('date,status,event_title').eq('user_id', user.id)
+    .gte('date', first).lte('date', last);
+  const events: PlannerEvent[] = [];
+  for (let offset = 0; offset < 10000; offset += 500) {
+    const { data, error } = await db.from('planner_events').select('*')
+      .eq('user_id', user.id).is('deleted_at', null)
+      .lt('starts_at', `${nextMonth}T00:00:00+09:00`)
+      .gt('ends_at', `${first}T00:00:00+09:00`)
+      .order('starts_at').order('id').range(offset, offset + 499);
+    if (error || !data) throw new Error('달력 일정을 불러오지 못했습니다.');
+    events.push(...data as PlannerEvent[]);
+    if (data.length < 500) break;
+    if (offset === 9500) throw new Error('한 달 일정이 너무 많아 모두 표시할 수 없습니다.');
+  }
+  const { data: legacy, error: legacyError } = await legacyRequest;
+  if (legacyError) throw new Error('기존 일정을 불러오지 못했습니다.');
+  return { month, events, legacy: legacy ?? [] };
+}
 export async function saveEvents(rows: Partial<PlannerEvent>[]) {
   const { db, user } = await session();
   if (!Array.isArray(rows) || !rows.length || rows.length > 366)

@@ -37,6 +37,7 @@ export default function DashboardPage() {
   const supabase = createClient()
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [groups, setGroups] = useState<{ id: number; name: string }[]>([])
@@ -69,6 +70,7 @@ export default function DashboardPage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
           setUser(user)
+          setIsLoading(false)
           const [{ data: userProfile }, { count }, { data: memberships }] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', user.id).single(),
             supabase.from('planner_patterns').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
@@ -83,6 +85,7 @@ export default function DashboardPage() {
       } catch (e) {
         console.error('Error checking user:', e)
       } finally {
+        setProfileLoaded(true)
         setIsLoading(false)
       }
     }
@@ -111,7 +114,7 @@ export default function DashboardPage() {
 
   const renderActiveView = () => {
     switch (activeView) {
-      case 'schedule': return <TimePlanner />
+      case 'schedule': return null
       case 'group': return <GroupManager user={user!} selectedGroupId={selectedGroupId} setSelectedGroupId={setSelectedGroupId} />
       case 'findDate': return <GroupAvailability groupId={selectedGroupId} onFindPlace={(planId) => {
         const url = new URL(window.location.href)
@@ -141,7 +144,7 @@ export default function DashboardPage() {
 
   return (
     <div className="app-shell min-h-screen">
-      {(!profile || !profile.username) && <UsernameSetupModal onComplete={handleUsernameComplete} />}
+      {profileLoaded && (!profile || !profile.username) && <UsernameSetupModal onComplete={handleUsernameComplete} />}
       <header className="border-b border-[var(--line)] bg-[var(--surface)]/90 backdrop-blur lg:hidden">
         <div className="flex h-[calc(70px+env(safe-area-inset-top))] items-center justify-between px-5 pt-[calc(8px+env(safe-area-inset-top))]">
           <Link href="/dashboard" className="flex items-center gap-2" aria-label="5총사 대시보드"><span className="brand-mark !size-9 !rounded-xl">5</span><span className="text-lg font-black tracking-tight">5총사</span></Link>
@@ -181,8 +184,9 @@ export default function DashboardPage() {
 
           {!hasWorkPatterns && (activeView === 'schedule' || activeView === 'ocr') && <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f0d7ae] bg-[#fff7e9] px-5 py-4 text-sm text-[#694b27] dark:border-[#725536] dark:bg-[#3b3022] dark:text-[#f8dcb7]"><p><strong>먼저 근무 표기를 설정해 보세요.</strong> 사진 속 주간·야간 등의 기호를 내 일정으로 바꾸는 데 도움이 돼요.</p><Link href="/settings/work-pattern" className="font-extrabold underline underline-offset-4">설정하기 →</Link></div>}
 
-          <GoogleCalendarConnection className={activeView === 'more' ? '' : activeView === 'schedule' ? 'hidden lg:block' : 'hidden'} />
-          <div className="mobile-screen-enter min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8" key={activeView}>{renderActiveView()}</div>
+          <GoogleCalendarConnection />
+          <div className={`mobile-screen-enter min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8 ${activeView === 'schedule' ? '' : 'hidden'}`}><TimePlanner /></div>
+          {activeView !== 'schedule' && <div className="mobile-screen-enter min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8" key={activeView}>{renderActiveView()}</div>}
         </main>
       </div>
       <nav aria-label="모바일 주요 메뉴" className="fixed inset-x-0 bottom-0 z-40 flex h-[calc(70px+env(safe-area-inset-bottom))] items-start justify-around border-t border-[var(--line)] bg-[var(--surface)]/95 px-3 pt-2 shadow-[0_-8px_24px_-20px_rgba(20,66,58,.3)] backdrop-blur lg:hidden">
