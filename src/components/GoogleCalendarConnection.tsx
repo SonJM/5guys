@@ -1,10 +1,12 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-export default function GoogleCalendarConnection() {
+export default function GoogleCalendarConnection({ className = '' }: { className?: string }) {
   const [connected, setConnected] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
+  const lastAttempt = useRef(0);
   const [conflicts, setConflicts] = useState<{ id: string; title: string }[]>(
     [],
   );
@@ -34,6 +36,9 @@ export default function GoogleCalendarConnection() {
     }
   }, []);
   const sync = useCallback(async () => {
+    if (inFlight.current || Date.now() - lastAttempt.current < 15000) return;
+    inFlight.current = true;
+    lastAttempt.current = Date.now();
     setBusy(true);
     try {
       const r = await fetch("/api/google/sync", { method: "POST" });
@@ -47,6 +52,7 @@ export default function GoogleCalendarConnection() {
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }, [refresh]);
@@ -71,6 +77,16 @@ export default function GoogleCalendarConnection() {
     }, 120000);
     return () => clearInterval(id);
   }, [connected, busy, sync]);
+  useEffect(() => {
+    const onLocalChange = () => { if (!busy && connected) void sync(); };
+    const onVisible = () => { if (document.visibilityState === 'visible' && !busy && connected) void sync(); };
+    window.addEventListener('planner-local-change', onLocalChange);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('planner-local-change', onLocalChange);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [busy, connected, sync]);
   async function resolve(id: string, keepCopy: boolean) {
     setBusy(true);
     try {
@@ -88,7 +104,7 @@ export default function GoogleCalendarConnection() {
     }
   }
   return (
-    <div className="surface-card space-y-3 !rounded-2xl !shadow-none p-4 sm:p-5 text-sm">
+    <div className={`surface-card space-y-3 !rounded-2xl !shadow-none p-4 sm:p-5 text-sm ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--brand-light)] text-lg font-black text-[var(--brand)]" aria-hidden="true">G</span>
@@ -96,8 +112,7 @@ export default function GoogleCalendarConnection() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className={`rounded-full px-3 py-1 text-xs font-bold ${connected ? 'bg-[var(--brand-light)] text-[var(--brand)]' : 'bg-[var(--surface-soft)] text-[var(--muted)]'}`}>{connected ? '연결됨' : '연결 전'}</span>
-          <a href="/api/google/connect" className="secondary-button !min-h-9 !px-3">{connected ? "다시 연결" : "캘린더 연결"}</a>
-          {connected && <button className="primary-button !min-h-9 !px-3" disabled={busy} onClick={() => void sync()}>{busy ? "동기화 중…" : "지금 동기화"}</button>}
+          {!connected && <a href="/api/google/connect" className="secondary-button !min-h-9 !px-3">Calendar 권한 다시 승인</a>}
         </div>
       </div>
       {message && <p role="status" className="muted text-xs">{message}</p>}

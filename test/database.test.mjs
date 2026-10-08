@@ -37,6 +37,13 @@ test("migration enforces private events and derives availability for every group
       "utf8",
     ),
   );
+  const syncMigration = await readFile(
+    new URL('../supabase/migrations/202610080001_google_auto_sync.sql', import.meta.url),
+    'utf8',
+  );
+  await db.exec(syncMigration);
+  await db.exec(syncMigration);
+  assert.equal((await db.query("select count(*)::integer as n from information_schema.columns where table_name='google_connections' and column_name in ('sync_token','watch_channel_id','sync_requested_at')")).rows[0].n, 3);
   await db.exec(`set role authenticated;set request.jwt.claim.sub='${a}';`);
   assert.equal((await db.query("select planner_rate_limit('google-sync',60) as allowed")).rows[0].allowed, true);
   const group = (await db.query(`select planner_create_group('Test') as id`))

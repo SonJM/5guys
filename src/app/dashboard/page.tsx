@@ -122,7 +122,7 @@ export default function DashboardPage() {
       }} />
       case 'places': return <PlaceRecommendations groupId={selectedGroupId} />
       case 'ocr': return <OcrUploader />
-      case 'more': return <div className="space-y-5"><h2 className="text-lg font-extrabold">도구와 설정</h2><button type="button" className="flex w-full items-center gap-3 rounded-2xl bg-[var(--surface-soft)] p-4 text-left font-bold" onClick={() => navigate('ocr')}><AppIcon name="camera" className="size-5 text-[var(--brand)]" />근무표 사진 가져오기 <span className="ml-auto">→</span></button><Link href="/settings/work-pattern" className="flex w-full items-center justify-between rounded-2xl bg-[var(--surface-soft)] p-4 font-bold">근무 유형 설정 <span>→</span></Link><Link href="/account" className="flex w-full items-center justify-between rounded-2xl bg-[var(--surface-soft)] p-4 font-bold">계정 설정 <span>→</span></Link><GoogleCalendarConnection /><div className="flex items-center justify-between rounded-2xl bg-[var(--surface-soft)] p-4"><span className="font-bold">테마</span><ThemeSwitcher /></div><SignOutButton /></div>
+      case 'more': return <div className="space-y-5"><h2 className="text-lg font-extrabold">도구와 설정</h2><button type="button" className="flex w-full items-center gap-3 rounded-2xl bg-[var(--surface-soft)] p-4 text-left font-bold" onClick={() => navigate('ocr')}><AppIcon name="camera" className="size-5 text-[var(--brand)]" />근무표 사진 가져오기 <span className="ml-auto">→</span></button><Link href="/settings/work-pattern" className="flex w-full items-center justify-between rounded-2xl bg-[var(--surface-soft)] p-4 font-bold">근무 유형 설정 <span>→</span></Link><Link href="/account" className="flex w-full items-center justify-between rounded-2xl bg-[var(--surface-soft)] p-4 font-bold">계정 설정 <span>→</span></Link><div className="flex items-center justify-between rounded-2xl bg-[var(--surface-soft)] p-4"><span className="font-bold">테마</span><ThemeSwitcher /></div><SignOutButton /></div>
     }
   }
 
@@ -181,7 +181,7 @@ export default function DashboardPage() {
 
           {!hasWorkPatterns && (activeView === 'schedule' || activeView === 'ocr') && <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f0d7ae] bg-[#fff7e9] px-5 py-4 text-sm text-[#694b27] dark:border-[#725536] dark:bg-[#3b3022] dark:text-[#f8dcb7]"><p><strong>먼저 근무 표기를 설정해 보세요.</strong> 사진 속 주간·야간 등의 기호를 내 일정으로 바꾸는 데 도움이 돼요.</p><Link href="/settings/work-pattern" className="font-extrabold underline underline-offset-4">설정하기 →</Link></div>}
 
-          {activeView === 'schedule' && <div className="hidden lg:block"><GoogleCalendarConnection /></div>}
+          <GoogleCalendarConnection className={activeView === 'more' ? '' : activeView === 'schedule' ? 'hidden lg:block' : 'hidden'} />
           <div className="mobile-screen-enter min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8" key={activeView}>{renderActiveView()}</div>
         </main>
       </div>

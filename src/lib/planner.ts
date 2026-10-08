@@ -88,6 +88,27 @@ export function addDays(day: string, count: number): string {
   date.setUTCDate(date.getUTCDate() + count);
   return date.toISOString().slice(0, 10);
 }
+export function recurringDays(startDay: string, frequency: 'none' | 'daily' | 'weekly' | 'monthly', interval: number, count: number, weekdays: number[] = []): string[] {
+  if (!validDay(startDay) || !Number.isInteger(interval) || interval < 1 || interval > 31 ||
+    !Number.isInteger(count) || count < 1 || count > 52) throw new Error('반복 조건을 확인해주세요.');
+  if (frequency === 'none') return [startDay];
+  const result: string[] = [];
+  const start = new Date(`${startDay}T00:00:00Z`);
+  const dayOfWeek = start.getUTCDay();
+  const allowed = new Set(weekdays.length ? weekdays : [dayOfWeek]);
+  for (let offset = 0; offset <= 3660 && result.length < count; offset++) {
+    const candidate = addDays(startDay, offset);
+    const current = new Date(`${candidate}T00:00:00Z`);
+    if (frequency === 'daily' && offset % interval === 0 ||
+      frequency === 'weekly' && Math.floor(offset / 7) % interval === 0 && allowed.has(current.getUTCDay()) ||
+      frequency === 'monthly' &&
+      (current.getUTCFullYear() - start.getUTCFullYear()) * 12 + current.getUTCMonth() - start.getUTCMonth() >= 0 &&
+      ((current.getUTCFullYear() - start.getUTCFullYear()) * 12 + current.getUTCMonth() - start.getUTCMonth()) % interval === 0 &&
+      current.getUTCDate() === start.getUTCDate()) result.push(candidate);
+  }
+  if (result.length !== count) throw new Error('반복 일정을 생성할 수 없습니다. 횟수나 간격을 줄여주세요.');
+  return result;
+}
 export function shiftTimes(
   day: string,
   pattern: Pick<

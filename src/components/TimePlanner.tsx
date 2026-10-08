@@ -10,9 +10,9 @@ import {
   addDays,
   dayString,
   localInput,
+  recurringDays,
   shiftTimes,
   type PlannerEvent,
-  type ShiftPattern,
 } from "@/lib/planner";
 import MonthGrid, { monthBounds } from "@/components/MonthGrid";
 
@@ -22,7 +22,6 @@ export default function TimePlanner() {
   const [monthEvents, setMonthEvents] = useState<PlannerEvent[]>([]);
   const [editorOpen, setEditorOpen] = useState(false);
   const [events, setEvents] = useState<PlannerEvent[]>([]);
-  const [patterns, setPatterns] = useState<ShiftPattern[]>([]);
   const [legacy, setLegacy] = useState<
     { date: string; status: string; event_title: string | null }[]
   >([]);
@@ -36,9 +35,9 @@ export default function TimePlanner() {
   const [kind, setKind] = useState<PlannerEvent["kind"]>("appointment");
   const [scope, setScope] = useState<"one" | "following" | "all">("one");
   const [repeat, setRepeat] = useState(1);
-  const [interval, setInterval] = useState(7);
-  const [cycle, setCycle] = useState("");
-  const [cycleDays, setCycleDays] = useState(28);
+  const [frequency, setFrequency] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
+  const [interval, setInterval] = useState(1);
+  const [weekdays, setWeekdays] = useState<number[]>([]);
   const requestVersion = useRef(0);
   const reload = useCallback(async () => {
     const version = ++requestVersion.current;
@@ -46,7 +45,6 @@ export default function TimePlanner() {
       const data = await loadPlanner(day, day);
       if (version !== requestVersion.current) return;
       setEvents(data.events);
-      setPatterns(data.patterns);
       setLegacy(data.legacy);
     } catch (e) {
       if (version !== requestVersion.current) return;
@@ -87,7 +85,8 @@ export default function TimePlanner() {
       await task();
       await reload();
       await reloadMonth();
-      setMessage("저장했습니다. Google 연결 시 다음 동기화에 반영됩니다.");
+      window.dispatchEvent(new Event('planner-local-change'));
+      setMessage("저장했습니다. Google Calendar에도 자동 반영됩니다.");
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -95,6 +94,10 @@ export default function TimePlanner() {
     }
   }
   function edit(event: PlannerEvent) {
+    if (event.kind === 'work') {
+      setMessage('근무는 근무표 사진에서 가져옵니다. 잘못 인식된 경우 근무표를 다시 확인해주세요.');
+      return;
+    }
     setId(event.id);
     setTitle(event.title);
     setStart(localInput(event.starts_at).slice(11));
@@ -116,30 +119,21 @@ export default function TimePlanner() {
       setEditorOpen(false);
       return;
     }
-    const count = id ? 1 : repeat;
-    if (
-      !Number.isInteger(count) ||
-      count < 1 ||
-      count > 52 ||
-      !Number.isInteger(interval) ||
-      interval < 1 ||
-      interval > 31
-    )
-      throw new Error("반복은 1~52회, 간격은 1~31일로 입력해주세요.");
+    const days = id ? [day] : recurringDays(day, frequency, interval, repeat, weekdays);
     const original = events.find((e) => e.id === id);
     if (original?.all_day)
       throw new Error(
         "Google 종일 일정은 Google Calendar에서 수정해주세요. 시간 일정은 별도로 추가할 수 있습니다.",
       );
     const series =
-      original?.series_id ?? (count > 1 ? crypto.randomUUID() : null);
+      original?.series_id ?? (days.length > 1 ? crypto.randomUUID() : null);
     await saveEvents(
-      Array.from({ length: count }, (_, i) => ({
+      days.map((date, i) => ({
         id: i === 0 ? id : undefined,
         title,
         kind,
         series_id: series,
-        ...shiftTimes(addDays(day, i * interval), {
+        ...shiftTimes(date, {
           start_time: start,
           end_time: end,
           end_day_offset: nextDay ? 1 : 0,
@@ -150,38 +144,6 @@ export default function TimePlanner() {
     setId(undefined);
     setTitle("");
     setEditorOpen(false);
-  }
-  async function applyCycle() {
-    const labels = cycle
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (
-      !labels.length ||
-      !Number.isInteger(cycleDays) ||
-      cycleDays < 1 ||
-      cycleDays > 366
-    )
-      throw new Error("순환 근무와 기간(1~366일)을 확인해주세요.");
-    const sequence = labels.map((label) => {
-      const pattern = patterns.find((p) => p.label === label);
-      if (!pattern) throw new Error(`${label}: 근무 유형을 먼저 등록해주세요.`);
-      return pattern;
-    });
-    const series = crypto.randomUUID();
-    const rows = Array.from({ length: cycleDays }, (_, i) => {
-      const p = sequence[i % sequence.length];
-      return { p, date: addDays(day, i) };
-    })
-      .filter(({ p }) => !p.is_off)
-      .map(({ p, date }) => ({
-        title: p.label,
-        kind: "work" as const,
-        series_id: series,
-        ...shiftTimes(date, p),
-      }));
-    if (rows.length) await saveEvents(rows);
-    setMessage("순환 근무를 등록했습니다. 빈 시간은 그룹 달력에 자동 반영됩니다.");
   }
   const selectedLabel = new Date(`${day}T00:00:00+09:00`).toLocaleDateString("ko-KR", {
     timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long",
@@ -303,15 +265,6 @@ export default function TimePlanner() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
-        <select
-          aria-label="일정 종류"
-          value={kind}
-          onChange={(e) => setKind(e.target.value as PlannerEvent["kind"])}
-        >
-          <option value="appointment">약속</option>
-          <option value="work">근무</option>
-          <option value="rest">수면·휴식 (약속 불가)</option>
-        </select>
         <label>
           시작{" "}
           <input
@@ -340,6 +293,16 @@ export default function TimePlanner() {
         </label>
         {!id && (
           <>
+            <label>반복
+              <select aria-label="반복 주기" value={frequency} onChange={(e) => setFrequency(e.target.value as typeof frequency)}>
+                <option value="none">반복 안 함</option>
+                <option value="daily">매일</option>
+                <option value="weekly">매주</option>
+                <option value="monthly">매월 같은 날짜</option>
+              </select>
+            </label>
+            {frequency === 'weekly' && <fieldset className="w-full"><legend className="text-sm">반복 요일</legend><div className="flex flex-wrap gap-2">{['일','월','화','수','목','금','토'].map((label, index) => <label key={label} className="flex items-center gap-1 text-sm"><input type="checkbox" checked={weekdays.includes(index)} onChange={(e) => setWeekdays(e.target.checked ? [...weekdays, index] : weekdays.filter((day) => day !== index))} />{label}</label>)}</div></fieldset>}
+            {frequency !== 'none' && <>
             <label>
               반복 횟수{" "}
               <input
@@ -351,7 +314,7 @@ export default function TimePlanner() {
               />
             </label>
             <label>
-              간격(일){" "}
+              반복 간격{" "}
               <input
                 type="number"
                 min={1}
@@ -360,6 +323,7 @@ export default function TimePlanner() {
                 onChange={(e) => setInterval(Number(e.target.value))}
               />
             </label>
+            </>}
           </>
         )}
         {id && events.find((e) => e.id === id)?.series_id && (
@@ -411,43 +375,6 @@ export default function TimePlanner() {
         )}
       </form>
       </div>}
-      <details className="rounded-2xl border border-[var(--line)] p-4 sm:p-5">
-        <summary className="cursor-pointer font-bold">
-          순환 교대근무 일괄 등록
-        </summary>
-        <div className="planner-form mt-3">
-          <p className="w-full text-sm">
-            근무 유형 이름을 쉼표로 입력하세요. 예: 주간, 주간, 야간, 야간,
-            휴무, 휴무. 기준일은 위에서 선택한 날짜입니다.
-          </p>
-          <a href="/settings/work-pattern" className="brand-link">
-            근무 유형 설정 →
-          </a>
-          <input
-            aria-label="순환 패턴"
-            value={cycle}
-            placeholder="주간,야간,휴무"
-            onChange={(e) => setCycle(e.target.value)}
-          />
-          <label>
-            등록 일수{" "}
-            <input
-              type="number"
-              min={1}
-              max={366}
-              value={cycleDays}
-              onChange={(e) => setCycleDays(Number(e.target.value))}
-            />
-          </label>
-          <button
-            disabled={busy}
-            onClick={() => void run(applyCycle)}
-            className="primary-button"
-          >
-            순환 일정 추가
-          </button>
-        </div>
-      </details>
     </section>
   );
 }

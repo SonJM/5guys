@@ -41,6 +41,43 @@ export function googleConfig() {
     redirect: `${origin.replace(/\/$/, "")}/api/google/callback`,
   };
 }
+export async function ensureGoogleWatch(userId: string) {
+  const db = adminDb();
+  const { data: connection, error } = await db.from('google_connections')
+    .select('*').eq('user_id', userId).single();
+  if (error || !connection) throw new Error('Google 연결 정보를 찾지 못했습니다.');
+  if (!Object.hasOwn(connection, 'watch_expires_at')) return; // Older DB: retain ordinary sync until migration is applied.
+  if (connection.watch_expires_at && Date.parse(connection.watch_expires_at) > Date.now() + 2 * 86400000) return;
+  const config = googleConfig();
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    body: new URLSearchParams({client_id: config.clientId, client_secret: config.secret,
+      refresh_token: unseal(connection.refresh_token), grant_type: 'refresh_token'}),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!tokenResponse.ok) throw new Error('Google 권한을 다시 승인해주세요.');
+  const { access_token } = await tokenResponse.json();
+  const channelId = crypto.randomUUID();
+  const channelToken = randomBytes(32).toString('hex');
+  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(connection.calendar_id)}/events/watch`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: channelId, type: 'web_hook',
+      address: `${config.redirect.replace('/api/google/callback', '')}/api/google/webhook`,
+      token: channelToken }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) throw new Error('Google 변경 알림 연결에 실패했습니다.');
+  const watch = await response.json();
+  if (!watch.resourceId || !watch.expiration) throw new Error('Google 변경 알림 응답이 올바르지 않습니다.');
+  const { error: saveError } = await db.from('google_connections').update({
+    watch_channel_id: channelId,
+    watch_resource_id: watch.resourceId,
+    watch_token: channelToken,
+    watch_expires_at: new Date(Number(watch.expiration)).toISOString(),
+  }).eq('user_id', userId);
+  if (saveError) throw new Error('Google 변경 알림 저장에 실패했습니다.');
+}
 type GoogleEvent = {
   id: string;
   summary?: string;
@@ -67,6 +104,7 @@ export async function syncGoogle(userId: string) {
       "Google을 연결하거나 진행 중인 동기화가 끝난 뒤 다시 시도해주세요.",
     );
   try {
+    const supportsCheckpoint = Object.hasOwn(connection, 'sync_token');
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       body: new URLSearchParams({
@@ -99,16 +137,27 @@ export async function syncGoogle(userId: string) {
     const remote: GoogleEvent[] = [];
     let page = "";
     let complete = false;
+    let nextSyncToken: string | undefined;
+    let incremental = supportsCheckpoint && !!connection.sync_token;
     for (let i = 0; i < 20; i++) {
       const query = new URLSearchParams({
-        timeMin: from,
-        timeMax: to,
         singleEvents: "true",
         showDeleted: "true",
         maxResults: "2500",
+        ...(incremental
+          ? { syncToken: connection.sync_token }
+          : { timeMin: from, timeMax: to }),
         ...(page ? { pageToken: page } : {}),
       });
       const response = await api(`?${query}`);
+      if (response.status === 410 && incremental) {
+        // Expired checkpoints require a fresh snapshot. No local writes have occurred yet.
+        incremental = false;
+        page = "";
+        remote.length = 0;
+        i = -1;
+        continue;
+      }
       if (!response.ok)
         throw new Error(
           "Google 일정을 읽지 못했습니다. Calendar 접근 권한을 확인해주세요.",
@@ -117,6 +166,7 @@ export async function syncGoogle(userId: string) {
       remote.push(...(data.items ?? []));
       page = data.nextPageToken;
       if (!page) {
+        nextSyncToken = data.nextSyncToken;
         complete = true;
         break;
       }
@@ -126,14 +176,33 @@ export async function syncGoogle(userId: string) {
         "동기화할 일정이 너무 많습니다. 캘린더의 반복 범위를 줄여주세요.",
       );
     const localRows: PlannerEvent[] = [];
-    for (let offset = 0; ; offset += 500) {
-      const { data, error } = await db.from('planner_events').select('*').eq('user_id', userId).order('id').range(offset, offset + 499);
-      if (error || !data || offset >= 10000) throw new Error('일정 조회 범위를 초과했거나 DB 조회에 실패했습니다.');
-      localRows.push(...data as PlannerEvent[]);
-      if (data.length < 500) break;
+    if (incremental) {
+      const changedIds = [...new Set(remote.map((event) => event.id))];
+      for (let offset = 0; offset < changedIds.length; offset += 100) {
+        const { data, error } = await db.from('planner_events').select('*')
+          .eq('user_id', userId).in('google_id', changedIds.slice(offset, offset + 100));
+        if (error) throw new Error('변경된 일정 조회에 실패했습니다.');
+        localRows.push(...(data as PlannerEvent[]));
+      }
+      for (let offset = 0; ; offset += 500) {
+        const { data, error } = await db.from('planner_events').select('*')
+          .eq('user_id', userId).eq('sync_state', 'pending').order('id').range(offset, offset + 499);
+        if (error || !data || offset >= 10000) throw new Error('대기 중인 일정 조회에 실패했습니다.');
+        localRows.push(...data as PlannerEvent[]);
+        if (data.length < 500) break;
+      }
+    } else {
+      for (let offset = 0; ; offset += 500) {
+        const { data, error } = await db.from('planner_events').select('*')
+          .eq('user_id', userId).order('id').range(offset, offset + 499);
+        if (error || !data || offset >= 10000) throw new Error('일정 조회 범위를 초과했거나 DB 조회에 실패했습니다.');
+        localRows.push(...data as PlannerEvent[]);
+        if (data.length < 500) break;
+      }
     }
+    const uniqueRows = [...new Map(localRows.map((event) => [event.id, event])).values()];
     const byGoogle = new Map(
-      localRows.filter((e) => e.google_id).map((e) => [e.google_id, e]),
+      uniqueRows.filter((e) => e.google_id).map((e) => [e.google_id, e]),
     );
     let imported = 0,
       exported = 0,
@@ -147,7 +216,7 @@ export async function syncGoogle(userId: string) {
     for (const event of remote) {
       // Recover an interrupted insert without importing our own event a second time.
       if (
-        localRows.some(
+        uniqueRows.some(
           (e) => !e.google_id && `fg${e.id.replace(/-/g, "")}` === event.id,
         )
       )
@@ -229,7 +298,7 @@ export async function syncGoogle(userId: string) {
       imported++;
     }
     // Expanded recurring instances removed or moved out of the window must not remain as stale busy time.
-    for (const event of localRows.filter(
+    for (const event of (incremental ? [] : uniqueRows).filter(
       (e) =>
         e.google_id &&
         e.sync_state === "synced" &&
@@ -271,7 +340,7 @@ export async function syncGoogle(userId: string) {
           );
       }
     }
-    for (const event of localRows.filter(
+    for (const event of uniqueRows.filter(
       (e) => e.sync_state === "pending" && !conflicted.has(e.id),
     )) {
       if (event.deleted_at && !event.google_id) {
@@ -355,9 +424,13 @@ export async function syncGoogle(userId: string) {
     await checked(
       await db
         .from("google_connections")
-        .update({ last_sync: now, last_error: null })
+        .update({ last_sync: now, last_error: null,
+          ...(supportsCheckpoint ? { sync_token: nextSyncToken ?? null } : {}) })
         .eq("user_id", userId),
     );
+    if (supportsCheckpoint) await checked(await db.from('google_connections')
+      .update({ sync_requested_at: null }).eq('user_id', userId)
+      .lte('sync_requested_at', now));
     return { imported, exported, conflicts };
   } catch (e) {
     await db

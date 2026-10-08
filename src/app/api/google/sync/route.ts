@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb, apiError, limited, session } from "@/lib/server";
-import { syncGoogle } from "@/lib/google";
+import { ensureGoogleWatch, syncGoogle } from "@/lib/google";
+import { after } from 'next/server';
 export const maxDuration = 300;
 export async function GET() {
   try {
@@ -20,7 +21,9 @@ export async function POST() {
   try {
     const { user, db } = await session();
     await limited(db, "google-sync", 60);
-    return NextResponse.json(await syncGoogle(user.id));
+    const result = await syncGoogle(user.id);
+    after(async () => { try { await ensureGoogleWatch(user.id); } catch { /* daily recovery retries */ } });
+    return NextResponse.json(result);
   } catch (e) {
     return apiError(e);
   }

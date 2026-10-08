@@ -146,6 +146,7 @@ export default function OcrUploader() {
         ...shiftTimes(date, p),
       }));
     if (working.length) await saveEvents(working);
+    if (working.length) window.dispatchEvent(new Event('planner-local-change'));
     setRows([]);
     setMessage(
       `${working.length}건의 근무를 등록했습니다. 휴무는 근무를 만들지 않습니다. 빈 시간은 그룹 달력에 자동 반영됩니다.`,
@@ -253,14 +254,9 @@ export default function OcrUploader() {
       </div>
       <textarea
         aria-label="인식된 텍스트"
-        placeholder="인식 결과를 수정하거나 ‘2026-09-01 주간’처럼 직접 입력할 수 있습니다."
+        placeholder="사진을 인식하면 추출한 텍스트가 표시됩니다."
         value={text}
-        disabled={busy}
-        onChange={(e) => {
-          setText(e.target.value);
-          setLayout([]);
-          setRows([]);
-        }}
+        readOnly
         className="h-32 w-full"
       />
       <button

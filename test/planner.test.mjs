@@ -11,7 +11,7 @@ const code = ts.transpileModule(
     },
   },
 ).outputText;
-const { shiftTimes, addDays, validDay, parseOcrRows, overlaps, commonWindows } =
+const { shiftTimes, addDays, validDay, parseOcrRows, overlaps, commonWindows, recurringDays } =
   await import(
     `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
   );
@@ -114,4 +114,12 @@ test("ambiguous aliases require explicit user mapping", () => {
     { ...patterns[0], id: "other", label: "다른 야간" },
   ]);
   assert.equal(rows[0].patternId, "");
+});
+test("repeating appointments keep selected weekdays and monthly calendar dates", () => {
+  assert.deepEqual(recurringDays('2026-10-05', 'weekly', 1, 4, [1, 3]),
+    ['2026-10-05', '2026-10-07', '2026-10-12', '2026-10-14']);
+  assert.deepEqual(recurringDays('2026-01-31', 'monthly', 1, 3),
+    ['2026-01-31', '2026-03-31', '2026-05-31']);
+  assert.deepEqual(recurringDays('2026-10-05', 'none', 1, 3), ['2026-10-05']);
+  assert.throws(() => recurringDays('2026-10-05', 'daily', 0, 3));
 });

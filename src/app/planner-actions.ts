@@ -59,6 +59,8 @@ export async function saveEvents(rows: Partial<PlannerEvent>[]) {
       throw new Error("일정 제목과 시작·종료 시간을 확인해주세요.");
     if (!["work", "appointment", "rest"].includes(row.kind ?? ""))
       throw new Error("일정 종류를 확인해주세요.");
+    if (row.kind === 'work' && row.source !== 'ocr')
+      throw new Error('근무 일정은 근무표 사진 분석 결과에서만 등록할 수 있습니다.');
     return {
       id: row.id ?? crypto.randomUUID(),
       user_id: user.id,
@@ -122,6 +124,7 @@ export async function updateSeries(
     .eq("user_id", user.id)
     .single();
   if (!event?.series_id) throw new Error("반복 일정을 찾을 수 없습니다.");
+  if (event.kind === 'work') throw new Error('근무 일정은 근무표 사진에서만 수정할 수 있습니다.');
   let query = db
     .from("planner_events")
     .select("*")

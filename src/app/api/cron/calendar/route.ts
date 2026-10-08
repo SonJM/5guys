@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/server";
-import { syncGoogle } from "@/lib/google";
+import { ensureGoogleWatch, syncGoogle } from "@/lib/google";
 export const maxDuration = 300;
 export async function GET(req: NextRequest) {
   if (
@@ -19,11 +19,16 @@ export async function GET(req: NextRequest) {
       { status: 500 },
     );
   let synced = 0;
+  let watched = 0;
   for (const connection of data ?? []) {
     try {
       await syncGoogle(connection.user_id);
       synced++;
     } catch {}
+    try {
+      await ensureGoogleWatch(connection.user_id);
+      watched++;
+    } catch {}
   }
-  return NextResponse.json({ synced, total: data?.length ?? 0 });
+  return NextResponse.json({ synced, watched, total: data?.length ?? 0 });
 }
