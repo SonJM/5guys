@@ -9,9 +9,11 @@ type Row = {
   confirmed: boolean;
   confidence: number;
 };
+type Recognition = { ocrResult: string; layout: unknown[] };
 export default function OcrUploader() {
   const [image, setImage] = useState("");
   const img = useRef<HTMLImageElement>(null);
+  const autoImage = useRef("");
   const [crop, setCrop] = useState({
     top: 0,
     bottom: 100,
@@ -26,6 +28,7 @@ export default function OcrUploader() {
   const [rows, setRows] = useState<Row[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState("");
   useEffect(() => {
     loadPlanner(dayString(), dayString())
       .then((d) => setPatterns(d.patterns))
@@ -56,17 +59,20 @@ export default function OcrUploader() {
       setMessage((e as Error).message);
     } finally {
       setBusy(false);
+      setProgress("");
     }
   }
-  async function recognize() {
+  async function recognize(): Promise<Recognition> {
     if (!img.current || crop.right <= crop.left || crop.bottom <= crop.top)
       throw new Error("달력 영역을 확인해주세요.");
+    setProgress("사진에서 글자를 읽고 있어요…");
     setRows([]);
     setText("");
     setLayout([]);
     const source = img.current;
     const w = source.naturalWidth;
     const h = source.naturalHeight;
+    if (!w || !h) throw new Error("사진을 열지 못했습니다. 다른 형식의 이미지를 선택해주세요.");
     const canvas = document.createElement("canvas");
     const width = (w * (crop.right - crop.left)) / 100;
     const height = (h * (crop.bottom - crop.top)) / 100;
@@ -92,24 +98,32 @@ export default function OcrUploader() {
     if (!blob) throw new Error("이미지를 처리하지 못했습니다.");
     const form = new FormData();
     form.append("file", blob, "calendar.png");
-    const data = await request("/api/ocr", form);
+    const data = await request("/api/ocr", form) as Recognition;
     setText(data.ocrResult);
     setLayout(data.layout);
+    if (!data.ocrResult.trim()) throw new Error("사진에서 글자를 찾지 못했습니다. 달력 영역을 조정해 다시 시도해주세요.");
+    return data;
   }
-  async function analyze() {
+  async function analyze(recognized?: Recognition) {
+    setProgress("날짜별 근무를 분석하고 있어요…");
     const [year, m] = month.split("-").map(Number);
     const data = await request(
       "/api/ocr/analyze",
-      JSON.stringify({ ocrText: text, layout, year, month: m, person }),
+      JSON.stringify({ ocrText: recognized?.ocrResult ?? text, layout: recognized?.layout ?? layout, year, month: m, person }),
       true,
     );
     setRows(data.rows);
     setMessage(
       data.warnings.join(" · ") ||
-        "날짜와 근무 유형을 확인한 항목만 선택해 저장해주세요.",
+        (data.rows.length ? "날짜와 근무 유형을 확인한 항목만 선택해 저장해주세요." : "인식된 근무가 없습니다. 연월과 달력 영역을 확인해주세요."),
     );
   }
+  async function processPhoto() {
+    const recognized = await recognize();
+    await analyze(recognized);
+  }
   async function save() {
+    setProgress("확인한 근무를 등록하고 있어요…");
     const selected = rows.filter((r) => r.confirmed);
     if (!selected.length) throw new Error("확인한 항목을 선택해주세요.");
     const ids = new Set<string>();
@@ -157,15 +171,31 @@ export default function OcrUploader() {
   }
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-[var(--brand-light)] px-3 py-1.5 text-[var(--brand)]">1 사진 선택</span><span className="rounded-full bg-[var(--surface-soft)] px-3 py-1.5">2 영역 인식</span><span className="rounded-full bg-[var(--surface-soft)] px-3 py-1.5">3 결과 확인</span></div>
+      <div className="flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-[var(--brand-light)] px-3 py-1.5 text-[var(--brand)]">1 연월·사진 선택</span><span className="rounded-full bg-[var(--surface-soft)] px-3 py-1.5">2 자동 분석</span><span className="rounded-full bg-[var(--surface-soft)] px-3 py-1.5">3 확인 후 등록</span></div>
       <h2 className="text-xl font-extrabold">근무표 사진으로 일정 만들기</h2>
       <p className="muted text-sm leading-6">
-        달력과 연월만 남도록 영역을 조정하세요. 광고·하단 메뉴는 제외하고, 여러
-        사람의 표라면 본인 이름을 입력하세요.
+        연월을 먼저 선택하고 사진을 올리면 자동으로 분석합니다. 광고·하단 메뉴가 섞이면
+        달력 영역을 조정해 다시 분석하세요. 여러 사람의 표라면 본인 이름을 입력하세요.
       </p>
       <a href="/settings/work-pattern" className="brand-link text-sm">
         나의 근무 표기·시간 설정 →
       </a>
+      <div className="planner-form rounded-2xl bg-[var(--surface-soft)] p-4">
+        <input
+          aria-label="근무표 연월"
+          type="month"
+          value={month}
+          disabled={busy}
+          onChange={(e) => { setMonth(e.target.value); setRows([]); }}
+        />
+        <input
+          aria-label="근무표 본인 이름"
+          placeholder="여러 사람의 표: 본인 이름"
+          value={person}
+          disabled={busy}
+          onChange={(e) => { setPerson(e.target.value); setRows([]); }}
+        />
+      </div>
       <input
         aria-label="근무표 이미지"
         type="file"
@@ -175,17 +205,22 @@ export default function OcrUploader() {
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (!f) return;
+          e.currentTarget.value = "";
           if (f.size > 15000000) {
             setMessage("15MB 이하 이미지를 선택해주세요.");
             return;
           }
-          setImage(URL.createObjectURL(f));
+          const url = URL.createObjectURL(f);
+          autoImage.current = url;
+          setImage(url);
           setRows([]);
           setText("");
           setLayout([]);
           setCrop({ top: 0, bottom: 100, left: 0, right: 100 });
         }}
       />
+      {busy && <p role="status" className="status-note">{progress || "처리 중입니다…"}</p>}
+      {message && <p role="status" className="status-note">{message}</p>}
       {image && (
         <>
           <div className="relative mx-auto max-w-md overflow-hidden rounded-2xl border border-[var(--line)]">
@@ -195,6 +230,15 @@ export default function OcrUploader() {
               src={image}
               alt="근무표 영역 선택 미리보기"
               className="w-full"
+              onLoad={() => {
+                if (autoImage.current !== image) return;
+                autoImage.current = "";
+                void run(processPhoto);
+              }}
+              onError={() => {
+                autoImage.current = "";
+                setMessage("사진을 열지 못했습니다. PNG·JPEG·WebP 이미지를 선택해주세요.");
+              }}
             />
             <div
               className="pointer-events-none absolute border-4 border-emerald-400 bg-emerald-200/10"
@@ -227,57 +271,13 @@ export default function OcrUploader() {
           <button
             disabled={busy}
             className="primary-button"
-            onClick={() => void run(recognize)}
+            onClick={() => void run(processPhoto)}
           >
-            선택한 영역 인식
+            선택한 영역 다시 분석
           </button>
         </>
       )}
-      <div className="planner-form rounded-2xl bg-[var(--surface-soft)] p-4">
-        <input
-          aria-label="근무표 연월"
-          type="month"
-          value={month}
-          disabled={busy}
-          onChange={(e) => {
-            setMonth(e.target.value);
-            setRows([]);
-          }}
-        />
-        <input
-          aria-label="근무표 본인 이름"
-          placeholder="여러 사람의 표: 본인 이름"
-          value={person}
-          disabled={busy}
-          onChange={(e) => {
-            setPerson(e.target.value);
-            setRows([]);
-          }}
-        />
-      </div>
-      <textarea
-        aria-label="인식된 텍스트"
-        placeholder="사진을 인식하면 추출한 텍스트가 표시됩니다."
-        value={text}
-        readOnly
-        className="h-32 w-full"
-      />
-      <button
-        disabled={busy || !text.trim()}
-        className="primary-button"
-        onClick={() => void run(analyze)}
-      >
-        날짜별 근무 분석
-      </button>
-      {busy && <p role="status">처리 중입니다…</p>}
-      {message && (
-        <p
-          role="status"
-          className="status-note"
-        >
-          {message}
-        </p>
-      )}
+      {text && <details className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><summary className="cursor-pointer text-sm font-bold">인식된 글자 확인</summary><textarea aria-label="인식된 텍스트" value={text} readOnly className="mt-3 h-32 w-full" /><button disabled={busy} className="secondary-button mt-3" onClick={() => void run(() => analyze())}>날짜별 분석 다시 시도</button></details>}
       {rows.length > 0 && (
         <>
           <p className="muted text-sm">

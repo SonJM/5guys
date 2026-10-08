@@ -37,7 +37,9 @@ export async function POST(req: NextRequest) {
       signal: AbortSignal.timeout(45000),
       body: JSON.stringify({
         model: "deepseek-flash",
+        thinking: { type: "disabled" },
         temperature: 0,
+        max_tokens: 4096,
         response_format: { type: "json_object" },
         messages: [
           {
@@ -62,9 +64,25 @@ export async function POST(req: NextRequest) {
         ],
       }),
     });
-    if (!response.ok) throw new Error("일정 분석 서비스 요청에 실패했습니다.");
+    if (!response.ok) {
+      const providerError = await response.json().catch(() => null);
+      console.error('OCR analysis provider error', response.status, providerError?.error?.code ?? 'unknown');
+      if (response.status === 401 || response.status === 403)
+        throw new Error('일정 분석 API 키를 확인해주세요.');
+      if (response.status === 402)
+        throw new Error('일정 분석 계정의 사용 가능 잔액을 확인해주세요.');
+      if (response.status === 429)
+        throw new Error('일정 분석 요청이 많습니다. 잠시 후 다시 시도해주세요.');
+      if (response.status === 400 || response.status === 422)
+        throw new Error(`일정 분석 요청 형식을 확인해야 합니다. (HTTP ${response.status})`);
+      throw new Error(`일정 분석 서비스가 응답하지 않습니다. 잠시 후 다시 시도해주세요. (HTTP ${response.status})`);
+    }
     const result = await response.json();
-    const parsed = JSON.parse(result.choices?.[0]?.message?.content ?? "{}");
+    const content = result.choices?.[0]?.message?.content;
+    if (!content) throw new Error('일정 분석 결과가 비어 있습니다. 다시 시도해주세요.');
+    let parsed;
+    try { parsed = JSON.parse(content); }
+    catch { throw new Error('일정 분석 결과 형식이 올바르지 않습니다. 다시 시도해주세요.'); }
     return NextResponse.json({
       rows: parseOcrRows(parsed.rows, year, month, patterns),
       warnings: Array.isArray(parsed.warnings)
