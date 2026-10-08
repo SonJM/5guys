@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
             },
             signal: AbortSignal.timeout(15000),
             body: JSON.stringify({
-              model: "deepseek-chat",
+              model: "deepseek-flash",
               temperature: 0,
               response_format: { type: "json_object" },
               messages: [
