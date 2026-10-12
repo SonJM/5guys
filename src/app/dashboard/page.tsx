@@ -22,7 +22,7 @@ const views: { id: View; number: string; label: string; title: string; descripti
   { id: 'schedule', number: '01', label: '내 일정', title: '내 시간 정리하기', description: '근무와 약속을 시간 단위로 기록하고, 빈 시간을 확인해 보세요.' },
   { id: 'group', number: '02', label: '그룹', title: '함께하는 사람들', description: '그룹을 만들고 구성원을 초대해 가능 시간만 공유하세요.' },
   { id: 'findDate', number: '03', label: '그룹 달력', title: '언제 만날까요?', description: '함께 비어 있는 시간을 달력에서 보고 여행과 약속을 계획해요.' },
-  { id: 'ocr', number: '04', label: '근무표 가져오기', title: '사진에서 근무 일정으로', description: '달력 영역을 선택하고 인식 결과를 확인한 뒤 등록하세요.' },
+  { id: 'ocr', number: '04', label: '근무표 가져오기', title: '사진에서 근무 일정으로', description: '사진을 올리고 분석 결과 달력에서 확인한 뒤 등록하세요.' },
   { id: 'places', number: '05', label: '장소 추천', title: '어디서 만날까요?', description: '약속 유형에 맞는 장소와 사람별 이동 시간을 비교해요.' },
 ]
 
@@ -43,11 +43,17 @@ export default function DashboardPage() {
   const [groups, setGroups] = useState<{ id: number; name: string }[]>([])
   const [activeView, setActiveView] = useState<View>('schedule')
   const [hasWorkPatterns, setHasWorkPatterns] = useState(true)
+  const [visitedTools, setVisitedTools] = useState({ ocr: false, findDate: false })
+  const [placePlanId, setPlacePlanId] = useState<string | null>(null)
+  useEffect(() => {
+    if (activeView === 'ocr' || activeView === 'findDate') setVisitedTools((current) => ({ ...current, [activeView]: true }))
+  }, [activeView])
 
   useEffect(() => {
     const restoreView = () => {
       const requested = new URLSearchParams(window.location.search).get('view')
       setActiveView(views.find((view) => view.id === requested)?.id ?? 'schedule')
+      setPlacePlanId(new URLSearchParams(window.location.search).get('plan'))
     }
     restoreView()
     window.addEventListener('popstate', restoreView)
@@ -59,6 +65,7 @@ export default function DashboardPage() {
     setActiveView(view)
     const url = new URL(window.location.href)
     url.searchParams.delete('plan')
+    setPlacePlanId(null)
     if (view === 'schedule') url.searchParams.delete('view')
     else url.searchParams.set('view', view)
     window.history.pushState(null, '', url)
@@ -91,6 +98,11 @@ export default function DashboardPage() {
     }
     void checkUser()
   }, [supabase])
+  useEffect(() => {
+    const refresh = () => { if (user) void createClient().from('planner_patterns').select('id', { count: 'exact', head: true }).eq('user_id', user.id).then(({ count }) => setHasWorkPatterns((count ?? 0) > 0)) }
+    window.addEventListener('planner-patterns-changed', refresh)
+    return () => window.removeEventListener('planner-patterns-changed', refresh)
+  }, [user])
 
   useEffect(() => {
     if (activeView !== 'findDate' || !user) return
@@ -115,16 +127,10 @@ export default function DashboardPage() {
   const renderActiveView = () => {
     switch (activeView) {
       case 'schedule': return null
-      case 'group': return <GroupManager user={user!} selectedGroupId={selectedGroupId} setSelectedGroupId={setSelectedGroupId} />
-      case 'findDate': return <GroupAvailability groupId={selectedGroupId} onFindPlace={(planId) => {
-        const url = new URL(window.location.href)
-        url.searchParams.set('view', 'places')
-        url.searchParams.set('plan', planId)
-        window.history.pushState(null, '', url)
-        setActiveView('places')
-      }} />
-      case 'places': return <PlaceRecommendations groupId={selectedGroupId} />
-      case 'ocr': return <OcrUploader />
+      case 'group': return <GroupManager user={user!} selectedGroupId={selectedGroupId} setSelectedGroupId={setSelectedGroupId} onGroupsChange={setGroups} />
+      case 'findDate': return null
+      case 'places': return <PlaceRecommendations groupId={selectedGroupId} planId={placePlanId} onBackToGroup={() => navigate('findDate')} />
+      case 'ocr': return null
       case 'more': return <div className="space-y-5"><h2 className="text-lg font-extrabold">도구와 설정</h2><button type="button" className="flex w-full items-center gap-3 rounded-2xl bg-[var(--surface-soft)] p-4 text-left font-bold" onClick={() => navigate('ocr')}><AppIcon name="camera" className="size-5 text-[var(--brand)]" />근무표 사진 가져오기 <span className="ml-auto">→</span></button><Link href="/settings/work-pattern" className="flex w-full items-center justify-between rounded-2xl bg-[var(--surface-soft)] p-4 font-bold">근무 유형 설정 <span>→</span></Link><Link href="/account" className="flex w-full items-center justify-between rounded-2xl bg-[var(--surface-soft)] p-4 font-bold">계정 설정 <span>→</span></Link><div className="flex items-center justify-between rounded-2xl bg-[var(--surface-soft)] p-4"><span className="font-bold">테마</span><ThemeSwitcher /></div><SignOutButton /></div>
     }
   }
@@ -182,11 +188,18 @@ export default function DashboardPage() {
           {mobileGroupActive && <div className="flex gap-2 px-5 lg:hidden"><button type="button" onClick={() => navigate('findDate')} aria-current={activeView === 'findDate' ? 'page' : undefined} className={`rounded-full px-4 py-2 text-xs font-bold ${activeView === 'findDate' ? 'bg-[var(--brand-light)] text-[var(--brand)]' : 'bg-[var(--surface)] text-[var(--muted)]'}`}>그룹 달력</button><button type="button" onClick={() => navigate('group')} aria-current={activeView === 'group' ? 'page' : undefined} className={`rounded-full px-4 py-2 text-xs font-bold ${activeView === 'group' ? 'bg-[var(--brand-light)] text-[var(--brand)]' : 'bg-[var(--surface)] text-[var(--muted)]'}`}>멤버 관리</button></div>}
           {mobileGroupActive && groups.length > 0 && <div className="px-5 lg:hidden"><label className="sr-only" htmlFor="mobile-group-select">그룹 선택</label><select id="mobile-group-select" value={selectedGroupId ?? ''} onChange={(event) => setSelectedGroupId(Number(event.target.value))} className="!min-h-9 !rounded-full !border-0 !bg-[var(--brand-light)] !px-4 !text-xs !font-bold !text-[var(--brand)]">{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></div>}
 
-          {!hasWorkPatterns && (activeView === 'schedule' || activeView === 'ocr') && <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f0d7ae] bg-[#fff7e9] px-5 py-4 text-sm text-[#694b27] dark:border-[#725536] dark:bg-[#3b3022] dark:text-[#f8dcb7]"><p><strong>먼저 근무 표기를 설정해 보세요.</strong> 사진 속 주간·야간 등의 기호를 내 일정으로 바꾸는 데 도움이 돼요.</p><Link href="/settings/work-pattern" className="font-extrabold underline underline-offset-4">설정하기 →</Link></div>}
+          {!hasWorkPatterns && (activeView === 'schedule' || activeView === 'ocr') && <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f0d7ae] bg-[#fff7e9] px-5 py-4 text-sm text-[#694b27] dark:border-[#725536] dark:bg-[#3b3022] dark:text-[#f8dcb7]"><p><strong>먼저 근무 표기를 설정해 보세요.</strong> 사진 속 주간·야간 등의 기호를 내 일정으로 바꾸는 데 도움이 돼요.</p>{activeView === 'ocr' ? <button type="button" className="font-extrabold underline underline-offset-4" onClick={() => window.dispatchEvent(new Event('planner-open-patterns'))}>설정하기 →</button> : <Link href="/settings/work-pattern" className="font-extrabold underline underline-offset-4">설정하기 →</Link>}</div>}
 
           <GoogleCalendarConnection />
           <div className={`mobile-screen-enter min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8 ${activeView === 'schedule' ? '' : 'hidden'}`}><TimePlanner /></div>
-          {activeView !== 'schedule' && <div className="mobile-screen-enter min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8" key={activeView}>{renderActiveView()}</div>}
+          {(visitedTools.ocr || activeView === 'ocr') && <div className={`min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8 ${activeView === 'ocr' ? '' : 'hidden'}`}><OcrUploader /></div>}
+          {(visitedTools.findDate || activeView === 'findDate') && <div className={`min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8 ${activeView === 'findDate' ? '' : 'hidden'}`}><GroupAvailability userId={user.id} groupId={selectedGroupId} onManageGroup={() => navigate('group')} onFindPlace={(planId) => {
+            const url = new URL(window.location.href)
+            url.searchParams.set('view', 'places'); url.searchParams.set('plan', planId)
+            window.history.pushState(null, '', url)
+            setPlacePlanId(planId); setActiveView('places')
+          }} /></div>}
+          {!['schedule', 'ocr', 'findDate'].includes(activeView) && <div className="mobile-screen-enter min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8" key={activeView}>{renderActiveView()}</div>}
         </main>
       </div>
       <nav aria-label="모바일 주요 메뉴" className="fixed inset-x-0 bottom-0 z-40 flex h-[calc(70px+env(safe-area-inset-bottom))] items-start justify-around border-t border-[var(--line)] bg-[var(--surface)]/95 px-3 pt-2 shadow-[0_-8px_24px_-20px_rgba(20,66,58,.3)] backdrop-blur lg:hidden">

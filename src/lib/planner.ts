@@ -24,6 +24,14 @@ export type ShiftPattern = {
   color: string;
   is_off: boolean;
 };
+const shiftPalette = ["#0f766e", "#2563eb", "#c2410c", "#9333ea", "#be123c", "#a16207"];
+export function shiftDisplayColor(pattern: ShiftPattern, patterns: ShiftPattern[]) {
+  const ownColor = /^#[0-9a-f]{6}$/i.test(pattern.color) ? pattern.color : "#0f766e";
+  const sameColor = patterns.filter((item) => (item.color ?? "").toLowerCase() === ownColor.toLowerCase());
+  if (sameColor.length <= 1) return ownColor;
+  const index = patterns.findIndex((item) => item.id === pattern.id);
+  return shiftPalette[Math.max(0, index) % shiftPalette.length];
+}
 export type AvailabilitySlot = {
   user_id: string;
   username: string;
@@ -135,33 +143,21 @@ export function overlaps(a: string, b: string, c: string, d: string) {
 export function localInput(iso: string) {
   return new Date(Date.parse(iso) + 9 * 3600000).toISOString().slice(0, 16);
 }
-export function parseOcrRows(
-  value: unknown,
-  year: number,
-  month: number,
-  patterns: ShiftPattern[],
-) {
+export function parseVisionRows(value: unknown, patterns: ShiftPattern[]) {
   if (!Array.isArray(value) || value.length > 62)
     throw new Error("인식 결과 형식이 올바르지 않습니다.");
-  const seen = new Set<string>();
+  const seen = new Set<number>();
   return value.map((raw: unknown) => {
     const row = raw as {
-      date?: unknown;
+      day?: unknown;
       label?: unknown;
       confidence?: unknown;
     };
-    if (
-      !row ||
-      typeof row.date !== "string" ||
-      !validDay(row.date) ||
-      !row.date.startsWith(`${year}-${String(month).padStart(2, "0")}-`)
-    )
-      throw new Error("대상 월 밖의 날짜 또는 잘못된 날짜가 있습니다.");
-    if (seen.has(row.date))
-      throw new Error(
-        `${row.date}: 중복 날짜가 있습니다. 본인 행만 선택해주세요.`,
-      );
-    seen.add(row.date);
+    if (!row || !Number.isInteger(row.day) || Number(row.day) < 1 || Number(row.day) > 31)
+      throw new Error("근무표의 날짜를 확인해주세요.");
+    const day = Number(row.day);
+    if (seen.has(day)) throw new Error(`${day}일에 중복 근무가 있습니다. 근무표를 확인해주세요.`);
+    seen.add(day);
     const label =
       typeof row.label === "string" ? row.label.trim().slice(0, 40) : "";
     const matches = patterns.filter((p) =>
@@ -170,14 +166,22 @@ export function parseOcrRows(
       ),
     );
     return {
-      date: row.date,
+      day,
       label,
       patternId: matches.length === 1 ? matches[0].id : "",
-      confirmed: false,
+      included: matches.length === 1,
       confidence:
         typeof row.confidence === "number"
           ? Math.max(0, Math.min(1, row.confidence))
           : 0,
     };
+  });
+}
+
+export function relinkVisionRows<T extends { day: number; label: string; patternId: string; included: boolean; confidence: number; manual?: boolean }>(rows: T[], patterns: ShiftPattern[]): T[] {
+  return rows.map((row) => {
+    if (row.patternId && patterns.some((pattern) => pattern.id === row.patternId)) return row;
+    if (row.manual) return { ...row, patternId: "", included: false };
+    return { ...row, ...parseVisionRows([{ day: row.day, label: row.label, confidence: row.confidence }], patterns)[0] };
   });
 }

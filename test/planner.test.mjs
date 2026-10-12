@@ -11,7 +11,7 @@ const code = ts.transpileModule(
     },
   },
 ).outputText;
-const { shiftTimes, addDays, validDay, parseOcrRows, overlaps, commonWindows, recurringDays } =
+const { shiftTimes, addDays, validDay, parseVisionRows, relinkVisionRows, shiftDisplayColor, overlaps, commonWindows, recurringDays } =
   await import(
     `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
   );
@@ -82,38 +82,59 @@ const patterns = [
     is_off: false,
   },
 ];
-test("OCR preserves unknown/ad text for review, never guesses a shift", () => {
-  const rows = parseOcrRows(
+test("vision results automatically include known shifts and leave unknown labels for review", () => {
+  const rows = parseVisionRows(
     [
-      { date: "2026-09-01", label: "N", confidence: 0.95 },
-      { date: "2026-09-02", label: "무료 쿠폰" },
+      { day: 1, label: "N", confidence: 0.95 },
+      { day: 2, label: "무료 쿠폰" },
     ],
-    2026,
-    9,
     patterns,
   );
   assert.equal(rows[0].patternId, "night");
-  assert.equal(rows[0].confirmed, false);
+  assert.equal(rows[0].included, true);
   assert.equal(rows[1].patternId, "");
-  assert.equal(rows[1].confirmed, false);
+  assert.equal(rows[1].included, false);
 });
-test("OCR rejects adjacent month, impossible date, duplicate employee/date rows", () => {
+test("vision results reject impossible day numbers and duplicate rows", () => {
   for (const rows of [
-    [{ date: "2026-08-31", label: "N" }],
-    [{ date: "2026-09-31", label: "N" }],
+    [{ day: 0, label: "N" }],
+    [{ day: 32, label: "N" }],
     [
-      { date: "2026-09-01", label: "N" },
-      { date: "2026-09-01", label: "D" },
+      { day: 1, label: "N" },
+      { day: 1, label: "D" },
     ],
   ])
-    assert.throws(() => parseOcrRows(rows, 2026, 9, patterns));
+    assert.throws(() => parseVisionRows(rows, patterns));
 });
 test("ambiguous aliases require explicit user mapping", () => {
-  const rows = parseOcrRows([{ date: "2026-09-01", label: "N" }], 2026, 9, [
+  const rows = parseVisionRows([{ day: 1, label: "N" }], [
     ...patterns,
     { ...patterns[0], id: "other", label: "다른 야간" },
   ]);
   assert.equal(rows[0].patternId, "");
+});
+test("work display colors distinguish patterns that share a stored default color", () => {
+  const same = [
+    { ...patterns[0], color: "#0f766e" },
+    { ...patterns[0], id: "day", label: "주간", color: "#0f766e" },
+  ];
+  assert.notEqual(shiftDisplayColor(same[0], same), shiftDisplayColor(same[1], same));
+  assert.equal(shiftDisplayColor({ ...same[0], color: "#123456" }, [{ ...same[0], color: "#123456" }]), "#123456");
+});
+test("adding a work pattern relinks existing analysis while preserving manual exclusions", () => {
+  const rows = [
+    { day: 1, label: 'N', patternId: '', included: false, confidence: 0.9 },
+    { day: 2, label: 'N', patternId: 'night', included: false, confidence: 0.9, manual: true },
+    { day: 3, label: 'N', patternId: '', included: false, confidence: 0.9, manual: true },
+  ];
+  const linked = relinkVisionRows(rows, patterns);
+  assert.equal(linked[0].patternId, 'night');
+  assert.equal(linked[0].included, true);
+  assert.equal(linked[1].included, false);
+  assert.equal(linked[2].patternId, '');
+  const removed = relinkVisionRows(linked, []);
+  assert.equal(removed[1].patternId, '');
+  assert.equal(removed[1].included, false);
 });
 test("repeating appointments keep selected weekdays and monthly calendar dates", () => {
   assert.deepEqual(recurringDays('2026-10-05', 'weekly', 1, 4, [1, 3]),

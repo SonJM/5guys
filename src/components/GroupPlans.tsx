@@ -1,14 +1,16 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { confirmGroupPlan, createGroupPlan, listGroupPlans, voteGroupPlan } from "@/app/group-plan-actions";
 import { dayString, localInput } from "@/lib/planner";
 
-export default function GroupPlans({ groupId, suggested, onFindPlace }: {
+export default function GroupPlans({ groupId, userId, selectedDay, suggested, onFindPlace }: {
   groupId: number;
+  userId: string;
+  selectedDay: string;
   suggested?: { start: string; end: string } | null;
   onFindPlace?: (planId: string) => void;
 }) {
-  const today = dayString();
+  const today = selectedDay || dayString();
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<"meetup" | "trip">("meetup");
   const [start, setStart] = useState(`${today}T18:00`);
@@ -16,13 +18,36 @@ export default function GroupPlans({ groupId, suggested, onFindPlace }: {
   const [workspace, setWorkspace] = useState<Awaited<ReturnType<typeof listGroupPlans>>>({ plans: [], isOwner: false, currentUserId: "" });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [draftReady, setDraftReady] = useState(false);
+  const [dateEdited, setDateEdited] = useState(false);
+  const draftKey = `group-plan-draft:${userId}:${groupId}`;
+  const previousSuggestion = useRef(suggested);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(draftKey) ?? 'null');
+      if (saved && typeof saved.title === 'string' && ['meetup', 'trip'].includes(saved.kind) && typeof saved.start === 'string' && typeof saved.end === 'string') {
+        setTitle(saved.title); setKind(saved.kind); setStart(saved.start); setEnd(saved.end); setDateEdited(!!saved.dateEdited);
+      }
+    } catch { /* An unavailable browser store must not block editing. */ }
+    setDraftReady(true);
+  }, [draftKey]);
+  useEffect(() => {
+    if (!draftReady) return;
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ title, kind, start, end, dateEdited })); } catch {}
+  }, [draftKey, draftReady, title, kind, start, end, dateEdited]);
+  useEffect(() => {
+    if (draftReady && !dateEdited) { setStart(`${selectedDay}T18:00`); setEnd(`${selectedDay}T20:00`); }
+  }, [selectedDay, dateEdited, draftReady]);
   const reload = useCallback(async () => {
     try { setWorkspace(await listGroupPlans(groupId)); }
     catch (e) { setMessage((e as Error).message); }
+    finally { setLoading(false); }
   }, [groupId]);
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
-    if (suggested) { setStart(localInput(suggested.start)); setEnd(localInput(suggested.end)); }
+    if (suggested && suggested !== previousSuggestion.current) { setStart(localInput(suggested.start)); setEnd(localInput(suggested.end)); setDateEdited(true); }
+    previousSuggestion.current = suggested;
   }, [suggested]);
   async function run(action: () => Promise<void>) {
     setBusy(true); setMessage("");
@@ -35,17 +60,18 @@ export default function GroupPlans({ groupId, suggested, onFindPlace }: {
     <div><h2 className="text-xl font-extrabold">함께 정하는 약속·여행</h2><p className="muted mt-1 text-sm">구성원 누구나 날짜를 제안하고 의견을 남길 수 있어요. 그룹 생성자가 확정한 일정은 그룹 달력의 바쁜 시간에 반영됩니다.</p></div>
     <form id="group-plan-form" className="planner-form scroll-mt-5 rounded-2xl bg-[var(--surface-soft)] p-4" onSubmit={(event) => {
       event.preventDefault();
-      void run(async () => { await createGroupPlan(groupId, title, kind, toIso(start), toIso(end)); setTitle(""); });
+      void run(async () => { await createGroupPlan(groupId, title, kind, toIso(start), toIso(end)); setTitle(""); setDateEdited(false); });
     }}>
       <h3 className="font-bold">날짜 후보 제안</h3>
       <input aria-label="계획 이름" required maxLength={100} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 부산 주말여행" className="min-w-40 flex-1" />
       <select aria-label="계획 유형" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}><option value="meetup">약속</option><option value="trip">여행</option></select>
-      <label>시작 <input type="datetime-local" required value={start} onChange={(e) => setStart(e.target.value)} /></label>
-      <label>종료 <input type="datetime-local" required value={end} onChange={(e) => setEnd(e.target.value)} /></label>
+      <label>시작 <input type="datetime-local" required value={start} onChange={(e) => { setStart(e.target.value); setDateEdited(true); }} /></label>
+      <label>종료 <input type="datetime-local" required value={end} onChange={(e) => { setEnd(e.target.value); setDateEdited(true); }} /></label>
+      {dateEdited && start.slice(0, 10) !== selectedDay && <p className="w-full text-xs text-[var(--muted)]">입력한 후보 날짜 {start.slice(0, 10)}를 유지하고 있습니다. 달력 선택일은 {selectedDay}입니다.</p>}
       <button disabled={busy} className="primary-button">후보 올리기</button>
     </form>
     {message && <p role="status" className="status-note">{message}</p>}
-    {!workspace.plans.length && <p className="empty-state text-sm">아직 그룹 계획이 없습니다.<span>달력에서 공통 가능 시간을 고르거나 첫 날짜를 제안해 보세요.</span></p>}
+    {loading ? <p role="status" className="muted text-sm">그룹 계획을 불러오는 중…</p> : !workspace.plans.length && !message && <p className="empty-state text-sm">아직 그룹 계획이 없습니다.<span>달력에서 공통 가능 시간을 고르거나 첫 날짜를 제안해 보세요.</span></p>}
     <div className="grid gap-3 sm:grid-cols-2">
       {workspace.plans.map((plan) => {
         const votes = plan.group_plan_votes ?? [];

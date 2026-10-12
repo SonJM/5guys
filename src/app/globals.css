@@ -44,6 +44,8 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
   min-height: 100vh;
   overflow-x: hidden;
   background: var(--background);
@@ -115,6 +117,7 @@ textarea { resize: vertical; }
 .calendar-day-selected, .calendar-day-selected:hover { background: var(--brand); color: white; }
 .calendar-day-outside { opacity: .38; }
 .calendar-dot { width: 5px; height: 5px; border-radius: 50%; }
+.calendar-shift-label { max-width: 95%; overflow: hidden; border: 1px solid; border-radius: 5px; background: var(--surface); padding: 0 3px; font-size: 10px; line-height: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-today { text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .mobile-tab { display: grid; width: 62px; height: 48px; place-items: center; border-radius: 16px; color: var(--muted); transition: color .18s ease, background .18s ease, transform .18s ease; }
 .mobile-tab:hover { color: var(--brand); background: var(--brand-light); }

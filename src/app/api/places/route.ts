@@ -12,6 +12,16 @@ type Place = {
   y: string;
 };
 type Participant = { name: string; origin: string; mode: "transit" | "car" };
+export async function GET() {
+  try {
+    await session();
+    return NextResponse.json({
+      search: !!process.env.KAKAO_REST_API_KEY,
+      car: !!process.env.KAKAO_MOBILITY_API_KEY,
+      transit: !!process.env.ODSAY_API_KEY,
+    }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) { return apiError(error); }
+}
 export async function POST(req: NextRequest) {
   try {
     const { db } = await session();
@@ -50,7 +60,7 @@ export async function POST(req: NextRequest) {
       throw new Error("각 참여자의 이름, 출발지와 이동수단을 입력해주세요.");
     const key = process.env.KAKAO_REST_API_KEY;
     if (!key)
-      throw new Error("국내 장소 검색 연결이 아직 준비되지 않았습니다.");
+      return NextResponse.json({ error: "장소 추천을 준비 중입니다. 현재는 지도 검색을 이용해주세요." }, { status: 503 });
     async function search(query: string, size: number) {
       const r = await fetch(
         `https://dapi.kakao.com/v2/local/search/keyword.json?${new URLSearchParams({ query, size: String(size) })}`,

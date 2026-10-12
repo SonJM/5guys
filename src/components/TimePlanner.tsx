@@ -11,6 +11,7 @@ import {
   dayString,
   localInput,
   recurringDays,
+  shiftDisplayColor,
   shiftTimes,
   type PlannerEvent,
 } from "@/lib/planner";
@@ -25,6 +26,7 @@ export default function TimePlanner() {
   const [loadingMonth, setLoadingMonth] = useState(true);
   const [revision, setRevision] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [detailsEvent, setDetailsEvent] = useState<PlannerEvent | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [id, setId] = useState<string>();
@@ -68,11 +70,11 @@ export default function TimePlanner() {
     return () => window.removeEventListener("planner-synced", listener);
   }, []);
   useEffect(() => {
-    if (!editorOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setEditorOpen(false); };
+    if (!editorOpen && !detailsEvent) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") { setEditorOpen(false); setDetailsEvent(null); } };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editorOpen]);
+  }, [editorOpen, detailsEvent]);
   async function run(task: () => Promise<void>) {
     setBusy(true);
     setMessage("");
@@ -144,6 +146,11 @@ export default function TimePlanner() {
     timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long",
   });
   const monthEvents = monthData?.month === month ? monthData.events : [];
+  const patterns = monthData?.month === month ? monthData.patterns : [];
+  const workColor = (event: PlannerEvent) => {
+    const pattern = patterns.find((item) => item.label === event.title);
+    return pattern ? shiftDisplayColor(pattern, patterns) : undefined;
+  };
   const events = monthEvents.filter((event) =>
     Date.parse(event.starts_at) < Date.parse(`${addDays(day, 1)}T00:00:00+09:00`) &&
     Date.parse(event.ends_at) > Date.parse(`${day}T00:00:00+09:00`)
@@ -154,6 +161,17 @@ export default function TimePlanner() {
     Date.parse(event.starts_at) < Date.parse(`${addDays(date, 1)}T00:00:00+09:00`) &&
     Date.parse(event.ends_at) > Date.parse(`${date}T00:00:00+09:00`)
   );
+  const period = (event: PlannerEvent) => {
+    const from = localInput(event.starts_at);
+    const to = localInput(event.ends_at);
+    if (event.all_day) {
+      const last = addDays(to.slice(0, 10), -1);
+      return `${from.slice(0, 10)}${last !== from.slice(0, 10) ? ` ~ ${last}` : ''} · 종일`;
+    }
+    return from.slice(0, 10) === to.slice(0, 10) ? `${from.slice(11)}–${to.slice(11)}` : `${from.replace('T', ' ')} ~ ${to.replace('T', ' ')}`;
+  };
+  const supportsEdit = detailsEvent && detailsEvent.kind !== 'work' && !detailsEvent.all_day &&
+    Date.parse(`${localInput(detailsEvent.ends_at).slice(0, 10)}T00:00:00Z`) - Date.parse(`${localInput(detailsEvent.starts_at).slice(0, 10)}T00:00:00Z`) <= 86400000;
   return (
     <section className="space-y-4 sm:space-y-5">
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(290px,1fr)]">
@@ -161,9 +179,12 @@ export default function TimePlanner() {
           <MonthGrid month={month} selectedDay={day} onMonthChange={(next) => { setMonth(next); setDay(`${next}-01`); setId(undefined); }} onSelect={(date) => { setDay(date); setMonth(date.slice(0, 7)); setId(undefined); }} tone={(date) => {
             const items = eventSummary(date);
             return items.some((event) => event.kind === "appointment") ? "accent" : items.length ? "brand" : undefined;
+          }} marker={(date) => {
+            const work = eventSummary(date).find((event) => event.kind === "work" && dayString(new Date(event.starts_at)) === date);
+            return work ? { label: work.title, color: workColor(work) ?? "#0f766e" } : undefined;
           }} description={(date) => `${eventSummary(date).length}개 일정`} />
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 px-2 text-[11px] font-semibold text-[var(--muted)]">
-            <span><span className="text-[var(--brand)]">●</span> 근무</span>
+            {patterns.filter((pattern) => !pattern.is_off).map((pattern) => <span key={pattern.id}><span style={{ color: shiftDisplayColor(pattern, patterns) }}>●</span> {pattern.label}</span>)}
             <span><span className="text-[var(--accent)]">●</span> 약속</span>
             <span>○ 빈 시간</span>
           </div>
@@ -175,9 +196,9 @@ export default function TimePlanner() {
             <button type="button" className="text-sm font-extrabold text-[var(--brand)] sm:hidden" onClick={() => { setId(undefined); setTitle(""); setEditorOpen(true); }}>+ 일정</button>
           </div>
           {sortedEvents.length ? sortedEvents.map((event) => (
-            <button key={event.id} type="button" onClick={() => edit(event)} className="flex w-full items-center gap-3 rounded-2xl bg-[var(--surface)] px-4 py-3 text-left shadow-sm ring-1 ring-[var(--line)] transition-transform active:scale-[.98] sm:bg-[var(--surface-soft)] sm:shadow-none">
-              <span className={`h-9 w-1 shrink-0 rounded-full ${event.kind === "appointment" ? "bg-[var(--accent)]" : event.kind === "work" ? "bg-[var(--brand)]" : "bg-slate-400"}`} aria-hidden="true" />
-              <span className="min-w-0"><span className="block truncate text-sm font-bold">{event.title}</span><span className="muted mt-0.5 block text-xs">{localInput(event.starts_at).slice(11)}–{localInput(event.ends_at).slice(11)}{dayString(new Date(event.starts_at)) !== dayString(new Date(event.ends_at)) && " (+1일)"}{event.sync_state === "conflict" && " · 변경 충돌"}</span></span>
+            <button key={event.id} type="button" onClick={() => setDetailsEvent(event)} className="flex w-full items-center gap-3 rounded-2xl bg-[var(--surface)] px-4 py-3 text-left shadow-sm ring-1 ring-[var(--line)] transition-transform active:scale-[.98] sm:bg-[var(--surface-soft)] sm:shadow-none">
+              <span className={`h-9 w-1 shrink-0 rounded-full ${event.kind === "appointment" ? "bg-[var(--accent)]" : event.kind === "work" ? "bg-[var(--brand)]" : "bg-slate-400"}`} style={event.kind === "work" ? { backgroundColor: workColor(event) } : undefined} aria-hidden="true" />
+              <span className="min-w-0"><span className="block truncate text-sm font-bold">{event.title}</span><span className="muted mt-0.5 block text-xs">{period(event)}{event.sync_state === "conflict" && " · 변경 충돌"}</span></span>
             </button>
           )) : loadingMonth ? <p role="status" className="rounded-2xl bg-[var(--surface-soft)] px-4 py-6 text-center text-sm text-[var(--muted)]">일정을 불러오는 중이에요…</p> : <p className="rounded-2xl bg-[var(--surface-soft)] px-4 py-6 text-center text-sm text-[var(--muted)]">이날은 등록된 일정이 없어요.<br />새 일정을 추가하거나 빈 시간으로 활용해 보세요.</p>}
           <button type="button" className="primary-button hidden w-full sm:inline-flex" onClick={() => { setId(undefined); setTitle(""); setEditorOpen(true); }}>+ 새 일정</button>
@@ -194,7 +215,7 @@ export default function TimePlanner() {
       )}
       <details className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5">
         <summary className="cursor-pointer text-sm font-bold">시간별 타임라인 보기</summary>
-        <p className="muted mt-2 text-xs">한국 시간 기준 · 일정을 눌러 수정할 수 있어요.</p>
+        <p className="muted mt-2 text-xs">한국 시간 기준 · 일정을 눌러 자세히 볼 수 있어요.</p>
       <div className="mt-4 max-h-[430px] overflow-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
         {Array.from({ length: 24 }, (_, hour) => {
           const from = `${day}T${String(hour).padStart(2, "0")}:00:00+09:00`;
@@ -217,13 +238,10 @@ export default function TimePlanner() {
                 {rows.map((e) => (
                   <button
                     key={e.id}
-                    onClick={() => edit(e)}
+                    onClick={() => setDetailsEvent(e)}
                     className={`rounded-lg border-l-[3px] px-3 py-2 text-left text-xs font-semibold ${e.kind === "work" ? "border-[#0f766e] bg-[#e4f3ef] text-[#155a53] dark:bg-[#24473e] dark:text-[#c4efdf]" : e.kind === "rest" ? "border-[#7799a2] bg-[#e8f0f1] text-[#3d6267] dark:bg-[#29434a] dark:text-[#d7eaeb]" : "border-[#e9796b] bg-[#fbe9e3] text-[#713c35] dark:bg-[#50332e] dark:text-[#fbe9e3]"}`}
                   >
-                    {e.title} {localInput(e.starts_at).slice(11)}–
-                    {localInput(e.ends_at).slice(11)}
-                    {dayString(new Date(e.starts_at)) !==
-                      dayString(new Date(e.ends_at)) && " (+1일)"}
+                    {e.title} {period(e)}
                     {e.sync_state === "conflict" && " · 변경 충돌"}
                   </button>
                 ))}
@@ -244,6 +262,16 @@ export default function TimePlanner() {
           ))}
         </details>
       )}
+      {detailsEvent && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailsEvent(null); }}>
+        <div role="dialog" aria-modal="true" aria-label="일정 상세" className="w-full max-w-lg space-y-4 rounded-t-3xl bg-[var(--surface)] p-5 sm:rounded-3xl">
+          <div className="flex items-center justify-between gap-3"><h3 className="text-lg font-extrabold">{detailsEvent.title}</h3><button type="button" className="ghost-button" aria-label="상세 닫기" onClick={() => setDetailsEvent(null)}>✕</button></div>
+          <p className="muted text-xs">조회 중인 날짜: {day}</p>
+          <p className="text-sm">{detailsEvent.all_day ? period(detailsEvent) : `${localInput(detailsEvent.starts_at).replace('T', ' ')} ~ ${localInput(detailsEvent.ends_at).replace('T', ' ')}`}</p>
+          <p className="muted text-xs">{detailsEvent.source === 'google' ? '외부 캘린더에서 가져온 일정' : detailsEvent.source === 'ocr' ? '근무표 사진에서 등록한 일정' : '앱에서 등록한 일정'}{detailsEvent.series_id && ' · 반복 일정'}</p>
+          {supportsEdit ? <button type="button" className="primary-button" onClick={() => { edit(detailsEvent); setDetailsEvent(null); }}>일정 수정</button>
+            : <p className="muted text-sm">{detailsEvent.kind === 'work' ? '근무는 사진 분석 결과에서 등록합니다.' : '종일·여러 날 일정의 기간 수정은 아직 지원하지 않습니다. 가져온 일정은 원본 캘린더에서 수정할 수 있어요.'}</p>}
+        </div>
+      </div>}
       {editorOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-5" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditorOpen(false); }}>
       <form
         id="new-event"

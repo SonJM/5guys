@@ -59,6 +59,20 @@ export async function inviteUserAction(
     return { error: (e as Error).message };
   }
 }
+export async function listGroupMembersAction(groupId: number) {
+  const { db, user } = await session();
+  if (!Number.isSafeInteger(groupId)) throw new Error('그룹을 선택해주세요.');
+  const { data: membership } = await db.from('group_members').select('user_id').eq('group_id', groupId).eq('user_id', user.id).maybeSingle();
+  if (!membership) throw new Error('그룹 구성원만 목록을 볼 수 있습니다.');
+  const [{ data: members, error }, { data: group }] = await Promise.all([
+    db.from('group_members').select('user_id').eq('group_id', groupId),
+    db.from('groups').select('created_by').eq('id', groupId).maybeSingle(),
+  ]);
+  if (error || !members) throw new Error('구성원 목록을 불러오지 못했습니다.');
+  const { data: profiles, error: profileError } = await db.from('profiles').select('id,username').in('id', members.map(member => member.user_id));
+  if (profileError) throw new Error('구성원 이름을 불러오지 못했습니다.');
+  return members.map(member => ({ id: member.user_id, name: profiles?.find(profile => profile.id === member.user_id)?.username || '구성원', role: member.user_id === group?.created_by ? '그룹 생성자' : '구성원' }));
+}
 export async function updateUsernameAction(username: string) {
   try {
     if (!username.trim() || username.length > 40)

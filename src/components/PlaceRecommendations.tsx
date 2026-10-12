@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { listGroupPlans, setGroupPlanPlace } from "@/app/group-plan-actions";
+import { localInput } from "@/lib/planner";
 type Candidate = {
   id: string;
   name: string;
@@ -16,7 +17,8 @@ type Candidate = {
     warning: string;
   }[];
 };
-export default function PlaceRecommendations({ groupId }: { groupId: number | null }) {
+const placeCategories: Record<string, string> = { cafe: '카페', dinner: '음식점', drinks: '술집', trip: '관광명소' };
+export default function PlaceRecommendations({ groupId, planId, onBackToGroup }: { groupId: number | null; planId: string | null; onBackToGroup?: () => void }) {
   const [type, setType] = useState("cafe");
   const [region, setRegion] = useState("");
   const [people, setPeople] = useState([
@@ -25,18 +27,33 @@ export default function PlaceRecommendations({ groupId }: { groupId: number | nu
   const [results, setResults] = useState<Candidate[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [targetPlan, setTargetPlan] = useState<{ id: string; title: string } | null>(null);
+  const [targetPlan, setTargetPlan] = useState<{ id: string; title: string; starts_at: string; ends_at: string; canSave: boolean } | null>(null);
+  const [service, setService] = useState<{ search: boolean; car: boolean; transit: boolean } | null>(null);
+  const [serviceError, setServiceError] = useState('');
+  const [searchError, setSearchError] = useState(false);
+  async function checkService() {
+    setServiceError('');
+    try {
+      const response = await fetch('/api/places', { cache: 'no-store' });
+      if (!response.ok) throw new Error('장소 추천 상태를 확인하지 못했습니다.');
+      setService(await response.json());
+    } catch { setServiceError('장소 추천 상태를 확인하지 못했습니다. 다시 확인해주세요.'); }
+  }
+  useEffect(() => { void checkService(); }, []);
   useEffect(() => {
     let alive = true;
     setTargetPlan(null);
-    const id = new URLSearchParams(window.location.search).get("plan");
+    const id = planId;
     if (!id || !groupId) return;
     listGroupPlans(groupId).then(({ plans, isOwner }) => {
       const plan = plans.find((p) => p.id === id);
-      if (alive && plan && isOwner) setTargetPlan({ id, title: plan.title });
+      if (alive && plan) {
+        setTargetPlan({ id, title: plan.title, starts_at: plan.starts_at, ends_at: plan.ends_at, canSave: isOwner });
+        setType(plan.kind === 'trip' ? 'trip' : 'cafe');
+      }
     }).catch(() => {});
     return () => { alive = false; };
-  }, [groupId]);
+  }, [groupId, planId]);
   async function savePlace(candidate: Candidate) {
     if (!targetPlan || !groupId) return;
     setBusy(true);
@@ -50,6 +67,7 @@ export default function PlaceRecommendations({ groupId }: { groupId: number | nu
     setBusy(true);
     setMessage("");
     setResults([]);
+    setSearchError(false);
     try {
       const r = await fetch("/api/places", {
         method: "POST",
@@ -63,6 +81,7 @@ export default function PlaceRecommendations({ groupId }: { groupId: number | nu
         `${data.ai ? "AI 추천 설명 포함 · " : ""}${data.note}${data.results.length ? "" : " 검색 결과가 없습니다."}`,
       );
     } catch (e) {
+      setSearchError(true);
       setMessage((e as Error).message);
     } finally {
       setBusy(false);
@@ -75,7 +94,10 @@ export default function PlaceRecommendations({ groupId }: { groupId: number | nu
         국내 장소를 검색하고 구성원별 이동 시간을 비교합니다. 출발지는 이번
         검색에만 사용하며 그룹에 저장하지 않습니다.
       </p>
-      {targetPlan && <p className="status-note">그룹 계획 「{targetPlan.title}」의 장소를 정하고 있어요. 추천 결과에서 장소를 선택하세요.</p>}
+      {targetPlan && <div className="status-note"><p>그룹 계획 「{targetPlan.title}」의 장소를 찾고 있어요.</p><p className="mt-1 text-xs">{localInput(targetPlan.starts_at).replace('T', ' ')} ~ {localInput(targetPlan.ends_at).replace('T', ' ')}</p>{onBackToGroup && <button type="button" className="brand-link mt-2 text-xs" onClick={onBackToGroup}>그룹 계획으로 돌아가기 →</button>}</div>}
+      {service?.search === false && <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">장소 추천을 준비 중입니다. 지금은 아래 지도 검색으로 장소를 확인할 수 있어요.</p>}
+      {serviceError && <p role="alert" className="text-sm text-[#a54036]">{serviceError} <button type="button" className="brand-link" onClick={() => void checkService()}>상태 다시 확인</button></p>}
+      {service?.search && (!service.car || !service.transit) && <p className="muted text-xs">{!service.car && '자동차 이동 시간'}{!service.car && !service.transit && ' · '}{!service.transit && '대중교통 이동 시간'} 조회를 준비 중입니다. 장소 검색은 이용할 수 있어요.</p>}
       <form
         className="space-y-4"
         onSubmit={(e) => {
@@ -171,13 +193,14 @@ export default function PlaceRecommendations({ groupId }: { groupId: number | nu
           >
             + 참여자
           </button>
-          <button disabled={busy} className="primary-button">
-            {busy ? "장소와 이동 시간 비교 중…" : "장소 추천받기"}
+          <button disabled={busy || !service?.search} className="primary-button">
+            {busy ? "장소와 이동 시간 비교 중…" : service ? '장소 추천받기' : '연결 상태 확인 중…'}
           </button>
+          <a className="secondary-button" href={`https://map.kakao.com/?q=${encodeURIComponent(`${region.trim()} ${placeCategories[type] ?? ''}`)}`} target="_blank" rel="noopener noreferrer">지도에서 직접 찾기 ↗</a>
         </div>
       </form>
       {message && (
-        <p role="status" className="status-note">
+        <p role={searchError ? 'alert' : 'status'} className={searchError ? 'rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900 dark:bg-red-950 dark:text-red-100' : 'status-note'}>
           {message}
         </p>
       )}
@@ -194,7 +217,7 @@ export default function PlaceRecommendations({ groupId }: { groupId: number | nu
               {p.name} ↗
             </a>
           </h3>
-          {targetPlan && <button type="button" disabled={busy} className="primary-button !min-h-9" onClick={() => void savePlace(p)}>이 장소를 그룹 계획에 저장</button>}
+          {targetPlan?.canSave && <button type="button" disabled={busy} className="primary-button !min-h-9" onClick={() => void savePlace(p)}>이 장소를 그룹 계획에 저장</button>}
           <p className="muted text-sm">{p.address}</p>
           {p.reason && <p className="text-sm">{p.reason}</p>}
           <ul className="space-y-2">

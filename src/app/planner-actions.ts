@@ -52,6 +52,10 @@ export async function loadCalendarMonth(month: string) {
   const legacyRequest = db.from('schedules')
     .select('date,status,event_title').eq('user_id', user.id)
     .gte('date', first).lte('date', last);
+  const extrasPromise = Promise.all([
+    legacyRequest,
+    db.from('planner_patterns').select('*').eq('user_id', user.id).order('label'),
+  ]);
   const events: PlannerEvent[] = [];
   for (let offset = 0; offset < 10000; offset += 500) {
     const { data, error } = await db.from('planner_events').select('*')
@@ -64,9 +68,10 @@ export async function loadCalendarMonth(month: string) {
     if (data.length < 500) break;
     if (offset === 9500) throw new Error('한 달 일정이 너무 많아 모두 표시할 수 없습니다.');
   }
-  const { data: legacy, error: legacyError } = await legacyRequest;
-  if (legacyError) throw new Error('기존 일정을 불러오지 못했습니다.');
-  return { month, events, legacy: legacy ?? [] };
+  const [legacyResult, patternResult] = await extrasPromise;
+  if (legacyResult.error) throw new Error('기존 일정을 불러오지 못했습니다.');
+  if (patternResult.error) throw new Error('근무 유형을 불러오지 못했습니다.');
+  return { month, events, legacy: legacyResult.data ?? [], patterns: (patternResult.data ?? []) as ShiftPattern[] };
 }
 export async function saveEvents(rows: Partial<PlannerEvent>[]) {
   const { db, user } = await session();
