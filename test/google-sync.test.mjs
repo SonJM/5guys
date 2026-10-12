@@ -41,7 +41,7 @@ test('new local event exports once; remote edit and delete return to the service
   await google.syncGoogle('u');assert.equal(env.remote.size,1);const row=env.tables.planner_events[0];assert.equal(row.sync_state,'synced')
   env.remote.set(row.google_id,{...env.remote.get(row.google_id),summary:'Edited in Google',etag:'changed'})
   await google.syncGoogle('u');assert.equal(row.title,'Edited in Google');assert.equal(env.tables.planner_events.length,1)
-  env.remote.delete(row.google_id);await google.syncGoogle('u');assert.ok(row.deleted_at)
+  env.remote.delete(row.google_id);const deleted=await google.syncGoogle('u');assert.ok(row.deleted_at);assert.equal(deleted.deleted,1);assert.equal(deleted.changed,true)
  }finally{env.restore()}
 })
 test('both-side edits create a conflict without overwriting either side',async()=>{
@@ -79,5 +79,11 @@ test('expired sync token falls back to a complete snapshot',async()=>{
   assert.equal(new URL(list[1].url).searchParams.get('syncToken'),'t1');
   assert.equal(new URL(list[2].url).searchParams.has('syncToken'),false);
   assert.equal(env.tables.google_connections[0].sync_token,'t1');
+ }finally{env.restore()}
+})
+test('unchanged incremental sync does not invalidate the displayed calendar',async()=>{
+ const env=setup([],true);try{
+  const result=await google.syncGoogle('u');assert.equal(result.changed,false);
+  const again=await google.syncGoogle('u');assert.equal(again.changed,false);
  }finally{env.restore()}
 })

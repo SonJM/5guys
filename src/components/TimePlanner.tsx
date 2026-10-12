@@ -2,10 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
   deleteEvents,
-  loadCalendarMonth,
   saveEvents,
   updateSeries,
 } from "@/app/planner-actions";
+import type { loadCalendarMonth } from "@/app/planner-actions";
 import {
   addDays,
   dayString,
@@ -16,8 +16,16 @@ import {
   type PlannerEvent,
 } from "@/lib/planner";
 import MonthGrid from "@/components/MonthGrid";
+import { adjacentMonths, MonthCache } from "@/lib/month-cache";
 
 type MonthData = Awaited<ReturnType<typeof loadCalendarMonth>>;
+
+async function fetchMonth(month: string): Promise<MonthData> {
+  const response = await fetch(`/api/calendar/month?${new URLSearchParams({ month })}`, { cache: 'no-store' });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error ?? '달력 일정을 불러오지 못했습니다.');
+  return data;
+}
 
 export default function TimePlanner() {
   const [day, setDay] = useState(dayString());
@@ -41,33 +49,41 @@ export default function TimePlanner() {
   const [interval, setInterval] = useState(1);
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const requestVersion = useRef(0);
-  const monthCache = useRef(new Map<string, MonthData>());
+  const monthCache = useRef(new MonthCache<MonthData>());
   useEffect(() => {
     const requestCounter = requestVersion;
     const version = ++requestCounter.current;
-    const cached = monthCache.current.get(month);
+    const cached = monthCache.current.peek(month);
     setMonthData(cached ?? null);
     setLoadingMonth(!cached);
-    if (cached) return;
-    void loadCalendarMonth(month).then((data) => {
-      if (version !== requestCounter.current) return;
-      monthCache.current.set(month, data);
-      if (monthCache.current.size > 6) monthCache.current.delete(monthCache.current.keys().next().value!);
+    let prefetch: number | undefined;
+    void monthCache.current.load(month, fetchMonth).then((data) => {
+      if (version !== requestCounter.current || !data) return;
       setMonthData(data);
+      prefetch = window.setTimeout(() => {
+        if (version !== requestCounter.current || document.visibilityState !== 'visible') return;
+        const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+        if (connection?.saveData || ['slow-2g', '2g'].includes(connection?.effectiveType ?? '')) return;
+        for (const adjacent of adjacentMonths(month)) void monthCache.current.load(adjacent, fetchMonth).catch(() => {});
+      }, 300);
     }).catch((error) => {
       if (version === requestCounter.current) setMessage((error as Error).message);
     }).finally(() => {
       if (version === requestCounter.current) setLoadingMonth(false);
     });
-    return () => { if (requestCounter.current === version) requestCounter.current++; };
+    return () => { if (prefetch !== undefined) window.clearTimeout(prefetch); if (requestCounter.current === version) requestCounter.current++; };
   }, [month, revision]);
   useEffect(() => {
     const listener = () => {
-      monthCache.current.clear();
+      monthCache.current.invalidate();
       setRevision((value) => value + 1);
     };
     window.addEventListener("planner-synced", listener);
-    return () => window.removeEventListener("planner-synced", listener);
+    const refresh = () => setRevision((value) => value + 1);
+    window.addEventListener('planner-refresh', refresh);
+    const onVisible = () => { if (document.visibilityState === 'visible') setRevision((value) => value + 1); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { window.removeEventListener("planner-synced", listener); window.removeEventListener('planner-refresh', refresh); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
   useEffect(() => {
     if (!editorOpen && !detailsEvent) return;
@@ -80,7 +96,7 @@ export default function TimePlanner() {
     setMessage("");
     try {
       await task();
-      monthCache.current.clear();
+      monthCache.current.invalidate();
       setRevision((value) => value + 1);
       window.dispatchEvent(new Event('planner-local-change'));
       setMessage("저장했습니다.");

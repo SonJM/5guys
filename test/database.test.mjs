@@ -43,6 +43,12 @@ test("migration enforces private events and derives availability for every group
   );
   await db.exec(syncMigration);
   await db.exec(syncMigration);
+  const realtimeMigration = await readFile(new URL('../supabase/migrations/202610120001_calendar_realtime.sql', import.meta.url), 'utf8');
+  await db.exec(realtimeMigration); // Safe when the publication does not exist.
+  await db.exec('create publication supabase_realtime;');
+  await db.exec(realtimeMigration);
+  await db.exec(realtimeMigration);
+  assert.equal((await db.query("select count(*)::integer as n from pg_publication_tables where pubname='supabase_realtime' and tablename='planner_events'")).rows[0].n, 1);
   assert.equal((await db.query("select count(*)::integer as n from information_schema.columns where table_name='google_connections' and column_name in ('sync_token','watch_channel_id','sync_requested_at')")).rows[0].n, 3);
   await db.exec(`set role authenticated;set request.jwt.claim.sub='${a}';`);
   assert.equal((await db.query("select planner_rate_limit('google-sync',60) as allowed")).rows[0].allowed, true);

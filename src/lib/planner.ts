@@ -143,21 +143,23 @@ export function overlaps(a: string, b: string, c: string, d: string) {
 export function localInput(iso: string) {
   return new Date(Date.parse(iso) + 9 * 3600000).toISOString().slice(0, 16);
 }
-export function parseVisionRows(value: unknown, patterns: ShiftPattern[]) {
+export type VisionRow = { key: string; date: string; dateLabel: string; label: string; patternId: string; included: boolean; confidence: number; manual?: boolean };
+export function parseVisionRows(value: unknown, patterns: ShiftPattern[]): VisionRow[] {
   if (!Array.isArray(value) || value.length > 62)
     throw new Error("인식 결과 형식이 올바르지 않습니다.");
-  const seen = new Set<number>();
-  return value.map((raw: unknown) => {
+  const seen = new Set<string>();
+  return value.map((raw: unknown, index) => {
     const row = raw as {
-      day?: unknown;
+      date?: unknown;
+      dateLabel?: unknown;
       label?: unknown;
       confidence?: unknown;
     };
-    if (!row || !Number.isInteger(row.day) || Number(row.day) < 1 || Number(row.day) > 31)
+    if (!row || (row.date !== null && row.date !== '' && (typeof row.date !== 'string' || !validDay(row.date))))
       throw new Error("근무표의 날짜를 확인해주세요.");
-    const day = Number(row.day);
-    if (seen.has(day)) throw new Error(`${day}일에 중복 근무가 있습니다. 근무표를 확인해주세요.`);
-    seen.add(day);
+    const date = typeof row.date === 'string' ? row.date : '';
+    if (date && seen.has(date)) throw new Error(`${date}에 중복 근무가 있습니다. 근무표를 확인해주세요.`);
+    if (date) seen.add(date);
     const label =
       typeof row.label === "string" ? row.label.trim().slice(0, 40) : "";
     const matches = patterns.filter((p) =>
@@ -166,10 +168,12 @@ export function parseVisionRows(value: unknown, patterns: ShiftPattern[]) {
       ),
     );
     return {
-      day,
+      key: `row-${index}`,
+      date,
+      dateLabel: typeof row.dateLabel === 'string' ? row.dateLabel.trim().slice(0, 40) : date,
       label,
       patternId: matches.length === 1 ? matches[0].id : "",
-      included: matches.length === 1,
+      included: matches.length === 1 && !!date,
       confidence:
         typeof row.confidence === "number"
           ? Math.max(0, Math.min(1, row.confidence))
@@ -178,10 +182,39 @@ export function parseVisionRows(value: unknown, patterns: ShiftPattern[]) {
   });
 }
 
-export function relinkVisionRows<T extends { day: number; label: string; patternId: string; included: boolean; confidence: number; manual?: boolean }>(rows: T[], patterns: ShiftPattern[]): T[] {
+export function relinkVisionRows<T extends VisionRow>(rows: T[], patterns: ShiftPattern[]): T[] {
   return rows.map((row) => {
     if (row.patternId && patterns.some((pattern) => pattern.id === row.patternId)) return row;
     if (row.manual) return { ...row, patternId: "", included: false };
-    return { ...row, ...parseVisionRows([{ day: row.day, label: row.label, confidence: row.confidence }], patterns)[0] };
+    const matched = parseVisionRows([{ date: row.date, dateLabel: row.dateLabel, label: row.label, confidence: row.confidence }], patterns)[0];
+    return { ...row, patternId: matched.patternId, included: matched.included };
+  });
+}
+
+export function reviewDates(start: string, end: string): string[] {
+  if (!validDay(start) || !validDay(end)) return [];
+  const count = (Date.parse(end) - Date.parse(start)) / 86400000 + 1;
+  if (count < 1 || count > 62) return [];
+  return Array.from({ length: count }, (_, index) => addDays(start, index));
+}
+
+export function changeReviewPeriod(rows: VisionRow[], previousStart: string, start: string, end: string): VisionRow[] {
+  const dates = reviewDates(start, end);
+  if (!dates.length) return rows;
+  const delta = validDay(previousStart) ? (Date.parse(start) - Date.parse(previousStart)) / 86400000 : 0;
+  return rows.map((row) => {
+    let date = row.date ? addDays(row.date, delta) : '';
+    if (!date) {
+      const label = row.dateLabel.replace(/\s/g, '');
+      const monthDay = /^(\d{1,2})[/.월-](\d{1,2})일?$/.exec(label);
+      const day = /^(\d{1,2})일?$/.exec(label);
+      const weekday = ['일', '월', '화', '수', '목', '금', '토'].indexOf(label.replace(/요일$/, ''));
+      const candidates = dates.filter((candidate) => monthDay
+        ? Number(candidate.slice(5, 7)) === Number(monthDay[1]) && Number(candidate.slice(8)) === Number(monthDay[2])
+        : day ? Number(candidate.slice(8)) === Number(day[1])
+        : weekday >= 0 && new Date(`${candidate}T00:00:00Z`).getUTCDay() === weekday);
+      if (candidates.length === 1) date = candidates[0];
+    }
+    return { ...row, date, included: !!date && dates.includes(date) && !!row.patternId && (row.manual ? row.included : true) };
   });
 }

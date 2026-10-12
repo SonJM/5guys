@@ -42,7 +42,9 @@ export default function GoogleCalendarConnection() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.error);
       await refresh();
-      window.dispatchEvent(new Event("planner-synced"));
+      if (data.changed ?? (data.imported + data.exported + data.conflicts > 0))
+        window.dispatchEvent(new Event("planner-synced"));
+      else window.dispatchEvent(new Event('planner-refresh'));
     } catch (e) {
       setMessage((e as Error).message);
     } finally {

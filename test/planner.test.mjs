@@ -11,7 +11,7 @@ const code = ts.transpileModule(
     },
   },
 ).outputText;
-const { shiftTimes, addDays, validDay, parseVisionRows, relinkVisionRows, shiftDisplayColor, overlaps, commonWindows, recurringDays } =
+const { shiftTimes, addDays, validDay, parseVisionRows, relinkVisionRows, reviewDates, changeReviewPeriod, shiftDisplayColor, overlaps, commonWindows, recurringDays } =
   await import(
     `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
   );
@@ -85,8 +85,8 @@ const patterns = [
 test("vision results automatically include known shifts and leave unknown labels for review", () => {
   const rows = parseVisionRows(
     [
-      { day: 1, label: "N", confidence: 0.95 },
-      { day: 2, label: "무료 쿠폰" },
+      { date: "2026-10-01", label: "N", confidence: 0.95 },
+      { date: "2026-10-02", label: "무료 쿠폰" },
     ],
     patterns,
   );
@@ -95,19 +95,19 @@ test("vision results automatically include known shifts and leave unknown labels
   assert.equal(rows[1].patternId, "");
   assert.equal(rows[1].included, false);
 });
-test("vision results reject impossible day numbers and duplicate rows", () => {
+test("vision results reject impossible dates and duplicate rows", () => {
   for (const rows of [
-    [{ day: 0, label: "N" }],
-    [{ day: 32, label: "N" }],
+    [{ date: "2026-02-29", label: "N" }],
+    [{ date: "2026-10-32", label: "N" }],
     [
-      { day: 1, label: "N" },
-      { day: 1, label: "D" },
+      { date: "2026-10-01", label: "N" },
+      { date: "2026-10-01", label: "D" },
     ],
   ])
     assert.throws(() => parseVisionRows(rows, patterns));
 });
 test("ambiguous aliases require explicit user mapping", () => {
-  const rows = parseVisionRows([{ day: 1, label: "N" }], [
+  const rows = parseVisionRows([{ date: "2026-10-01", label: "N" }], [
     ...patterns,
     { ...patterns[0], id: "other", label: "다른 야간" },
   ]);
@@ -123,9 +123,9 @@ test("work display colors distinguish patterns that share a stored default color
 });
 test("adding a work pattern relinks existing analysis while preserving manual exclusions", () => {
   const rows = [
-    { day: 1, label: 'N', patternId: '', included: false, confidence: 0.9 },
-    { day: 2, label: 'N', patternId: 'night', included: false, confidence: 0.9, manual: true },
-    { day: 3, label: 'N', patternId: '', included: false, confidence: 0.9, manual: true },
+    { key: '1', date: '2026-10-01', dateLabel: '1', label: 'N', patternId: '', included: false, confidence: 0.9 },
+    { key: '2', date: '2026-10-02', dateLabel: '2', label: 'N', patternId: 'night', included: false, confidence: 0.9, manual: true },
+    { key: '3', date: '2026-10-03', dateLabel: '3', label: 'N', patternId: '', included: false, confidence: 0.9, manual: true },
   ];
   const linked = relinkVisionRows(rows, patterns);
   assert.equal(linked[0].patternId, 'night');
@@ -143,4 +143,28 @@ test("repeating appointments keep selected weekdays and monthly calendar dates",
     ['2026-01-31', '2026-03-31', '2026-05-31']);
   assert.deepEqual(recurringDays('2026-10-05', 'none', 1, 3), ['2026-10-05']);
   assert.throws(() => recurringDays('2026-10-05', 'daily', 0, 3));
+});
+test('weekly photo dates cross month and year without losing their date', () => {
+  const dates = reviewDates('2026-12-28', '2027-01-03');
+  assert.equal(dates.length, 7);
+  const rows = parseVisionRows(dates.map(date => ({date, label: 'N', confidence: 0.98})), patterns);
+  assert.deepEqual(rows.map(row => row.date), dates);
+  assert.ok(rows.every(row => row.included));
+  assert.equal(reviewDates('2026-01-01', '2026-03-04').length, 0);
+  assert.equal(reviewDates('2026-10-10', '2026-10-01').length, 0);
+});
+test('uncertain dates stay excluded until a unique date can be inferred from a confirmed period', () => {
+  const rows = parseVisionRows([{date: null, dateLabel: '월요일', label: 'N'}, {date: null, dateLabel: '1/1', label: 'N'}], patterns);
+  assert.ok(rows.every(row => !row.included && !row.date));
+  const linked = changeReviewPeriod(rows, '', '2026-12-28', '2027-01-03');
+  assert.deepEqual(linked.map(row => row.date), ['2026-12-28', '2027-01-01']);
+  assert.ok(linked.every(row => row.included));
+  assert.equal(changeReviewPeriod(rows, '', '2026-12-28', '2027-01-10')[0].date, '');
+});
+test('period corrections shift dates while preserving explicit exclusions', () => {
+  const rows = parseVisionRows([{date: '2026-12-31', label: 'N'}], patterns);
+  rows[0].manual = true; rows[0].included = false;
+  const changed = changeReviewPeriod(rows, '2026-12-28', '2027-01-04', '2027-01-10');
+  assert.equal(changed[0].date, '2027-01-07');
+  assert.equal(changed[0].included, false);
 });

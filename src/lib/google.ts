@@ -206,7 +206,8 @@ export async function syncGoogle(userId: string) {
     );
     let imported = 0,
       exported = 0,
-      conflicts = 0;
+      conflicts = 0,
+      deleted = 0;
     async function checked(result: { error: unknown }) {
       if (result.error)
         throw new Error("동기화 결과 저장에 실패했습니다. 다시 시도해주세요.");
@@ -243,7 +244,7 @@ export async function syncGoogle(userId: string) {
         event.status === "cancelled" ||
         event.transparency === "transparent"
       ) {
-        if (own)
+        if (own) {
           await checked(
             await db
               .from("planner_events")
@@ -255,6 +256,8 @@ export async function syncGoogle(userId: string) {
               .eq("id", own.id)
               .eq("updated_at", own.updated_at!),
           );
+          deleted++;
+        }
         continue;
       }
       const starts =
@@ -308,7 +311,7 @@ export async function syncGoogle(userId: string) {
         !seen.has(e.google_id!),
     )) {
       const response = await api(`/${encodeURIComponent(event.google_id!)}`);
-      if (response.status === 404 || response.status === 410)
+      if (response.status === 404 || response.status === 410) {
         await checked(
           await db
             .from("planner_events")
@@ -316,9 +319,10 @@ export async function syncGoogle(userId: string) {
             .eq("id", event.id)
             .eq("updated_at", event.updated_at!),
         );
-      else if (response.ok) {
+        deleted++;
+      } else if (response.ok) {
         const moved: GoogleEvent = await response.json();
-        if (moved.status === "cancelled")
+        if (moved.status === "cancelled") {
           await checked(
             await db
               .from("planner_events")
@@ -326,7 +330,8 @@ export async function syncGoogle(userId: string) {
               .eq("id", event.id)
               .eq("updated_at", event.updated_at!),
           );
-        else if (moved.start?.dateTime && moved.end?.dateTime)
+          deleted++;
+        } else if (moved.start?.dateTime && moved.end?.dateTime) {
           await checked(
             await db
               .from("planner_events")
@@ -338,6 +343,8 @@ export async function syncGoogle(userId: string) {
               .eq("id", event.id)
               .eq("updated_at", event.updated_at!),
           );
+          imported++;
+        }
       }
     }
     for (const event of uniqueRows.filter(
@@ -431,7 +438,7 @@ export async function syncGoogle(userId: string) {
     if (supportsCheckpoint) await checked(await db.from('google_connections')
       .update({ sync_requested_at: null }).eq('user_id', userId)
       .lte('sync_requested_at', now));
-    return { imported, exported, conflicts };
+    return { imported, exported, conflicts, deleted, changed: imported + exported + conflicts + deleted > 0 };
   } catch (e) {
     await db
       .from("google_connections")

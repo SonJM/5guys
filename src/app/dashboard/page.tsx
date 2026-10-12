@@ -15,6 +15,7 @@ import GroupManager from '@/components/GroupManager'
 import UsernameSetupModal from '@/components/UsernameSetupModal'
 import type { Profile } from '@/types'
 import AppIcon, { type AppIconName } from '@/components/AppIcon'
+import CalendarChangeListener from '@/components/CalendarChangeListener'
 
 type View = 'schedule' | 'group' | 'findDate' | 'ocr' | 'places' | 'more'
 
@@ -150,6 +151,7 @@ export default function DashboardPage() {
 
   return (
     <div className="app-shell min-h-screen">
+      <CalendarChangeListener userId={user.id} />
       {profileLoaded && (!profile || !profile.username) && <UsernameSetupModal onComplete={handleUsernameComplete} />}
       <header className="border-b border-[var(--line)] bg-[var(--surface)]/90 backdrop-blur lg:hidden">
         <div className="flex h-[calc(70px+env(safe-area-inset-top))] items-center justify-between px-5 pt-[calc(8px+env(safe-area-inset-top))]">
