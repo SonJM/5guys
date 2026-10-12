@@ -18,7 +18,7 @@ Node.js 22가 필요합니다. Supabase 프로젝트의 URL·익명 키를 `.env
 
 Google, 근무표 이미지 분석, 장소 검색을 포함한 배포 순서와 필요한 서버 비밀키는 [배포 안내](docs/DEPLOYMENT.md)에 정리했습니다. Calendar API 활성화와 캘린더 접근 OAuth 동의는 각각 필요합니다. 근무표 분석은 OpenAI 이미지 입력을 사용하며 Google Vision API는 필요하지 않습니다.
 
-실제 사용 흐름과 **Kakao·ODsay 연결 방법, 내장 지도 미구현 범위**는 [사용 가이드](docs/USAGE.md)를 참고하세요. DB 변경을 열린 화면에 전달하려면 [Realtime 마이그레이션](supabase/migrations/202610120001_calendar_realtime.sql)을 추가 적용합니다.
+실제 사용 흐름과 **Kakao 장소·자동차·대중교통 연결 방법, 내장 지도 미구현 범위**는 [사용 가이드](docs/USAGE.md)를 참고하세요. ODsay 키는 더 이상 필요하지 않습니다. DB 변경을 열린 화면에 전달하려면 [Realtime 마이그레이션](supabase/migrations/202610120001_calendar_realtime.sql)을 추가 적용합니다.
 
 ## 검증
 

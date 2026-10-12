@@ -8,6 +8,7 @@ type Candidate = {
   address: string;
   url: string;
   reason: string;
+  verified: boolean;
   journeys: {
     name: string;
     origin: string;
@@ -15,6 +16,7 @@ type Candidate = {
     minutes: number | null;
     summary: string;
     warning: string;
+    url: string;
   }[];
 };
 const placeCategories: Record<string, string> = { cafe: '카페', dinner: '음식점', drinks: '술집', trip: '관광명소' };
@@ -206,7 +208,7 @@ export default function PlaceRecommendations({ groupId, planId, onBackToGroup }:
       )}
       {results.map((p, index) => (
         <article key={p.id} className="space-y-3 rounded-2xl border border-[var(--line)] p-5">
-          <span className="eyebrow">추천 장소 {index + 1}</span>
+          <span className="eyebrow">{p.verified ? `추천 후보 ${index + 1}` : '경로 확인 필요'}</span>
           <h3 className="font-bold">
             <a
               href={p.url}
@@ -230,6 +232,7 @@ export default function PlaceRecommendations({ groupId, planId, onBackToGroup }:
                 {j.mode === "car" ? "자동차" : "대중교통"} ·{" "}
                 {j.minutes === null ? "시간 미확인" : `약 ${j.minutes}분`}
                 <p className="text-xs">{j.summary || j.warning}</p>
+                {j.url && <a href={j.url} target="_blank" rel="noopener noreferrer" className="brand-link mt-2 inline-block text-xs">카카오맵에서 길찾기 ↗</a>}
               </li>
             ))}
           </ul>
