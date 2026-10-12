@@ -16,7 +16,7 @@
 
 Node.js 22가 필요합니다. Supabase 프로젝트의 URL·익명 키를 `.env.local`의 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`에 설정하고 `npm ci`, `npm run dev`를 실행합니다. 신규 설치에는 [기본 일정 마이그레이션](supabase/migrations/202609290001_planner.sql), [그룹 달력 마이그레이션](supabase/migrations/202610060001_group_workspace.sql), [자동 동기화 마이그레이션](supabase/migrations/202610080001_google_auto_sync.sql)을 순서대로 적용합니다. 기존 설치는 적용 이력을 확인한 뒤 누락된 마이그레이션만 적용합니다.
 
-Google, OCR, 장소 검색을 포함한 배포 순서와 필요한 서버 비밀키는 [배포 안내](docs/DEPLOYMENT.md)에 정리했습니다. Calendar API 활성화와 캘린더 접근 OAuth 동의는 각각 필요합니다. OCR용 Cloud Vision과 장소·길찾기 API는 별도 연결입니다.
+Google, 근무표 이미지 분석, 장소 검색을 포함한 배포 순서와 필요한 서버 비밀키는 [배포 안내](docs/DEPLOYMENT.md)에 정리했습니다. Calendar API 활성화와 캘린더 접근 OAuth 동의는 각각 필요합니다. 근무표 분석은 OpenAI 이미지 입력을 사용하며 Google Vision API는 필요하지 않습니다.
 
 ## 검증
 

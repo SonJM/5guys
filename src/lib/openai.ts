@@ -3,6 +3,7 @@ type StructuredRequest = {
   schema: Record<string, unknown>;
   instructions: string;
   input: string;
+  image?: { dataUrl: string; detail: "high" | "original" };
   maxOutputTokens: number;
   timeoutMs: number;
 };
@@ -12,6 +13,7 @@ export async function structuredCompletion<T>({
   schema,
   instructions,
   input,
+  image,
   maxOutputTokens,
   timeoutMs,
 }: StructuredRequest): Promise<T> {
@@ -36,7 +38,15 @@ export async function structuredCompletion<T>({
       },
       messages: [
         { role: "system", content: instructions },
-        { role: "user", content: input },
+        {
+          role: "user",
+          content: image
+            ? [
+                { type: "text", text: input },
+                { type: "image_url", image_url: { url: image.dataUrl, detail: image.detail } },
+              ]
+            : input,
+        },
       ],
     }),
   });

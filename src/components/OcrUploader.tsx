@@ -9,7 +9,6 @@ type Row = {
   confirmed: boolean;
   confidence: number;
 };
-type Recognition = { ocrResult: string; layout: unknown[] };
 export default function OcrUploader() {
   const [image, setImage] = useState("");
   const img = useRef<HTMLImageElement>(null);
@@ -20,8 +19,6 @@ export default function OcrUploader() {
     left: 0,
     right: 100,
   });
-  const [text, setText] = useState("");
-  const [layout, setLayout] = useState<unknown[]>([]);
   const [month, setMonth] = useState(dayString().slice(0, 7));
   const [person, setPerson] = useState("");
   const [patterns, setPatterns] = useState<ShiftPattern[]>([]);
@@ -40,10 +37,9 @@ export default function OcrUploader() {
     },
     [image],
   );
-  async function request(url: string, body: BodyInit, json = false) {
+  async function request(url: string, body: BodyInit) {
     const response = await fetch(url, {
       method: "POST",
-      headers: json ? { "Content-Type": "application/json" } : undefined,
       body,
     });
     const data = await response.json();
@@ -62,13 +58,11 @@ export default function OcrUploader() {
       setProgress("");
     }
   }
-  async function recognize(): Promise<Recognition> {
+  async function processPhoto() {
     if (!img.current || crop.right <= crop.left || crop.bottom <= crop.top)
       throw new Error("달력 영역을 확인해주세요.");
-    setProgress("사진에서 글자를 읽고 있어요…");
+    setProgress("사진에서 날짜별 근무를 분석하고 있어요…");
     setRows([]);
-    setText("");
-    setLayout([]);
     const source = img.current;
     const w = source.naturalWidth;
     const h = source.naturalHeight;
@@ -76,7 +70,7 @@ export default function OcrUploader() {
     const canvas = document.createElement("canvas");
     const width = (w * (crop.right - crop.left)) / 100;
     const height = (h * (crop.bottom - crop.top)) / 100;
-    const scale = Math.min(1, 2400 / Math.max(width, height));
+    const scale = Math.min(1, 3000 / Math.max(width, height));
     canvas.width = Math.round(width * scale);
     canvas.height = Math.round(height * scale);
     canvas
@@ -93,34 +87,23 @@ export default function OcrUploader() {
         canvas.height,
       );
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/png"),
+      canvas.toBlob(resolve, "image/jpeg", 0.9),
     );
     if (!blob) throw new Error("이미지를 처리하지 못했습니다.");
-    const form = new FormData();
-    form.append("file", blob, "calendar.png");
-    const data = await request("/api/ocr", form) as Recognition;
-    setText(data.ocrResult);
-    setLayout(data.layout);
-    if (!data.ocrResult.trim()) throw new Error("사진에서 글자를 찾지 못했습니다. 달력 영역을 조정해 다시 시도해주세요.");
-    return data;
-  }
-  async function analyze(recognized?: Recognition) {
-    setProgress("날짜별 근무를 분석하고 있어요…");
+    if (blob.size > 4000000)
+      throw new Error("처리한 이미지가 4MB를 넘었습니다. 달력 영역을 조금 좁혀주세요.");
     const [year, m] = month.split("-").map(Number);
-    const data = await request(
-      "/api/ocr/analyze",
-      JSON.stringify({ ocrText: recognized?.ocrResult ?? text, layout: recognized?.layout ?? layout, year, month: m, person }),
-      true,
-    );
+    const form = new FormData();
+    form.append("file", blob, "calendar.jpg");
+    form.append("year", String(year));
+    form.append("month", String(m));
+    form.append("person", person);
+    const data = await request("/api/ocr/analyze", form);
     setRows(data.rows);
     setMessage(
       data.warnings.join(" · ") ||
         (data.rows.length ? "날짜와 근무 유형을 확인한 항목만 선택해 저장해주세요." : "인식된 근무가 없습니다. 연월과 달력 영역을 확인해주세요."),
     );
-  }
-  async function processPhoto() {
-    const recognized = await recognize();
-    await analyze(recognized);
   }
   async function save() {
     setProgress("확인한 근무를 등록하고 있어요…");
@@ -174,8 +157,8 @@ export default function OcrUploader() {
       <div className="flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-[var(--brand-light)] px-3 py-1.5 text-[var(--brand)]">1 연월·사진 선택</span><span className="rounded-full bg-[var(--surface-soft)] px-3 py-1.5">2 자동 분석</span><span className="rounded-full bg-[var(--surface-soft)] px-3 py-1.5">3 확인 후 등록</span></div>
       <h2 className="text-xl font-extrabold">근무표 사진으로 일정 만들기</h2>
       <p className="muted text-sm leading-6">
-        연월을 먼저 선택하고 사진을 올리면 자동으로 분석합니다. 광고·하단 메뉴가 섞이면
-        달력 영역을 조정해 다시 분석하세요. 여러 사람의 표라면 본인 이름을 입력하세요.
+        연월을 먼저 선택하고 사진을 올리면 AI가 달력 구조와 근무 표기를 함께 분석합니다.
+        광고·하단 메뉴가 섞이면 달력 영역을 조정해 다시 분석하세요. 여러 사람의 표라면 본인 이름을 입력하세요.
       </p>
       <a href="/settings/work-pattern" className="brand-link text-sm">
         나의 근무 표기·시간 설정 →
@@ -214,8 +197,6 @@ export default function OcrUploader() {
           autoImage.current = url;
           setImage(url);
           setRows([]);
-          setText("");
-          setLayout([]);
           setCrop({ top: 0, bottom: 100, left: 0, right: 100 });
         }}
       />
@@ -277,7 +258,6 @@ export default function OcrUploader() {
           </button>
         </>
       )}
-      {text && <details className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><summary className="cursor-pointer text-sm font-bold">인식된 글자 확인</summary><textarea aria-label="인식된 텍스트" value={text} readOnly className="mt-3 h-32 w-full" /><button disabled={busy} className="secondary-button mt-3" onClick={() => void run(() => analyze())}>날짜별 분석 다시 시도</button></details>}
       {rows.length > 0 && (
         <>
           <p className="muted text-sm">

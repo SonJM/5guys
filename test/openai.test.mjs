@@ -53,6 +53,33 @@ test("OpenAI request uses a server key, low-cost model, and strict output schema
   }
 });
 
+test("OpenAI vision request sends the image with original detail and keeps structured output", async () => {
+  const previousKey = process.env.OPENAI_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.OPENAI_API_KEY = "test-key";
+  let body;
+  globalThis.fetch = async (_url, init) => {
+    body = JSON.parse(init.body);
+    return new Response(JSON.stringify({
+      choices: [{ finish_reason: "stop", message: { content: '{"rows":["A"]}' } }],
+    }), { status: 200 });
+  };
+  try {
+    const image = { dataUrl: "data:image/jpeg;base64,YQ==", detail: "original" };
+    assert.deepEqual(await structuredCompletion({ ...options, image }), { rows: ["A"] });
+    assert.deepEqual(body.messages[1].content, [
+      { type: "text", text: options.input },
+      { type: "image_url", image_url: { url: image.dataUrl, detail: "original" } },
+    ]);
+    assert.equal(body.response_format.json_schema.strict, true);
+    assert.equal(body.store, false);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousKey;
+  }
+});
+
 test("OpenAI missing key and exhausted credits have actionable errors", async () => {
   const previousKey = process.env.OPENAI_API_KEY;
   const previousFetch = globalThis.fetch;
