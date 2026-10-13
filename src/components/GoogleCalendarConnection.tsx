@@ -98,13 +98,10 @@ export default function GoogleCalendarConnection() {
     }
   }
   if (connected === null && !message && !conflicts.length) return null;
+  if (connected && !message && !conflicts.length) return null;
   const needsReconnect = connected === false || /권한|다시 연결|승인/.test(message);
   return (
     <div className="space-y-3 px-5 text-sm lg:px-0">
-      {connected && <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="muted" role="status">Google 기본 캘린더 · {busy ? '동기화 중…' : lastSync ? '마지막 동기화: ' + new Date(lastSync).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '아직 동기화가 완료되지 않았어요.'}</p>
-        <button type="button" className="secondary-button !min-h-9" disabled={busy} onClick={() => void sync()}>지금 동기화</button>
-      </div>}
       {message && <p role="alert" className="status-note">{message}</p>}
       {(message || connected === false) && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"><div><p>{needsReconnect ? '일정 자동 업데이트 연결이 필요해요.' : '일정 자동 업데이트가 지연되고 있어요. 잠시 후 다시 시도합니다.'}</p><p className="mt-1 text-xs">저장된 일정 확인과 앱 일정 등록은 이용할 수 있어요. 외부에서 바꾼 일정은 아직 반영되지 않을 수 있습니다.</p><p className="mt-1 text-xs">{lastSync ? `마지막 업데이트: ${new Date(lastSync).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : '아직 완료된 자동 업데이트가 없습니다.'}</p></div>{needsReconnect && <a href="/api/google/connect" className="font-bold underline underline-offset-2">연결 복구</a>}</div>}
       {conflicts.map((c) => (
