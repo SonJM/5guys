@@ -15,14 +15,21 @@ export async function GET(request: Request) {
     const supabase = createClient(cookieStore)
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      const calendarFailure = (message: string) => {
+        const url = new URL(next, origin)
+        url.searchParams.set('calendarError', message)
+        return NextResponse.redirect(url)
+      }
+      // Calendar setup must never undo a completed app login.
+      try {
       const identity = data.user?.identities?.find((item) => item.provider === 'google')
-      const googleAccount = identity?.id
-      if (!googleAccount || !data.user) return NextResponse.redirect(`${origin}/login?error=auth`)
+      const googleAccount = identity?.identity_data?.sub ?? identity?.id
+      if (!googleAccount || !data.user) return calendarFailure('로그인은 완료됐지만 Google Calendar 계정을 확인하지 못했습니다. 연결 복구를 이용해주세요.')
       const db = adminDb()
       const { data: existing, error: lookupError } = await db.from('google_connections')
         .select('google_account,refresh_token').eq('user_id', data.user.id).maybeSingle()
       if (lookupError || (existing && existing.google_account !== googleAccount)) {
-        return NextResponse.redirect(`${origin}/dashboard?calendarError=Google%20계정%20연결을%20확인해주세요`)
+        return calendarFailure('Google 계정 연결을 확인해주세요.')
       }
       if (data.session?.provider_refresh_token || existing?.refresh_token) {
         const { error: saveError } = await db.from('google_connections').upsert({
@@ -31,11 +38,14 @@ export async function GET(request: Request) {
           calendar_id: 'primary',
           refresh_token: data.session?.provider_refresh_token
             ? seal(data.session.provider_refresh_token) : existing!.refresh_token,
-          last_error: null,
+          ...(data.session?.provider_refresh_token ? { last_error: null } : {}),
         })
-        if (saveError) return NextResponse.redirect(`${origin}/dashboard?calendarError=Google%20Calendar%20연결을%20저장하지%20못했습니다`)
+        if (saveError) return calendarFailure('로그인은 완료됐지만 Google Calendar 연결을 저장하지 못했습니다. 연결 복구를 이용해주세요.')
       } else {
-        return NextResponse.redirect(`${origin}/dashboard?calendarError=Calendar%20권한을%20다시%20승인해주세요`)
+        return calendarFailure('로그인은 완료됐습니다. Calendar 권한은 연결 복구에서 승인해주세요.')
+      }
+      } catch {
+        return calendarFailure('로그인은 완료됐지만 Calendar 연결 처리에 실패했습니다. 연결 복구를 이용해주세요.')
       }
       return NextResponse.redirect(`${origin}${next}`)
     }

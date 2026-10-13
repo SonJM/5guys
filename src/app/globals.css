@@ -129,3 +129,8 @@ textarea { resize: vertical; }
 @media (max-width: 639px) { .month-grid { width: 100%; } .calendar-days { gap: 2px; } .calendar-day { min-height: clamp(42px, 12vw, 54px); } }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+@media (max-width: 639px) {
+  .place-form .planner-form { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .place-form .planner-form input,
+  .place-form .planner-form select { width: 100%; min-width: 0; }
+}

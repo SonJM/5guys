@@ -70,6 +70,7 @@ export default function InviteMemberForm({ groupId, onInvited }: { groupId: numb
       setToast({ message: '성공적으로 초대했습니다!', type: 'success' })
       setInvitableUsers(prev => prev.filter(user => user.id !== selectedUserId))
       setSelectedUserId('')
+      window.dispatchEvent(new Event('planner-synced'))
       onInvited?.()
     }
     } catch {

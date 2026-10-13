@@ -51,10 +51,21 @@ export default function GroupAvailability({
     return () => { alive = false; };
   }, [groupId, month, revision]);
   useEffect(() => {
-    const listener = () => { monthCache.current.clear(); setRevision((value) => value + 1); };
+    const listener = () => {
+      monthCache.current.clear(); setMonthRows([]); setRows([]);
+      setMonthLoading(!!groupId); setRowsLoading(!!groupId); setSuggested(null);
+      setRevision((value) => value + 1);
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') listener(); };
     window.addEventListener('planner-synced', listener);
-    return () => window.removeEventListener('planner-synced', listener);
-  }, []);
+    window.addEventListener('focus', listener);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('planner-synced', listener);
+      window.removeEventListener('focus', listener);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [groupId]);
   useEffect(() => {
     let alive = true;
     setRows([]);
@@ -133,8 +144,8 @@ export default function GroupAvailability({
         </label>
       </div>
       <p className="muted text-xs">
-        최대 14일 범위에서 연속 시간을 찾습니다. 여행 2일은 48시간으로
-        입력하세요.
+        최대 14일 범위에서 연속 시간을 찾습니다. 여행은 출발부터 귀가까지
+        실제 필요한 시간을 입력하세요. 1박 2일이 항상 48시간인 것은 아닙니다.
       </p>
       </details>}
       {message && <p role="alert" className="status-note">{message}</p>}

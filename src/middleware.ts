@@ -1,9 +1,9 @@
 // src/middleware.ts
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  const response = NextResponse.next({
+  let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
@@ -14,16 +14,13 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
+        getAll() {
+          return request.cookies.getAll()
         },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options })
-          response.cookies.set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options })
-          response.cookies.delete({ name, ...options })
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          response = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
         },
       },
     }
@@ -31,15 +28,20 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
+  const redirect = (path: string) => {
+    const redirected = NextResponse.redirect(new URL(path, request.url))
+    response.cookies.getAll().forEach((cookie) => redirected.cookies.set(cookie))
+    return redirected
+  }
 
   // 보호된 경로: 로그인하지 않은 사용자는 로그인 페이지로 리디렉션
   if (!user && (pathname.startsWith('/dashboard') || pathname.startsWith('/account') || pathname.startsWith('/settings'))) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return redirect('/login')
   }
 
   // 공개 경로: 로그인한 사용자가 접근 시 대시보드로 리디렉션
   if (user && (pathname === '/login' || pathname === '/')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return redirect('/dashboard')
   }
 
   return response

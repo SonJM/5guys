@@ -72,10 +72,12 @@ test('places API uses Kakao for transit, ranks only complete estimates, and limi
     delete process.env.ODSAY_API_KEY; delete process.env.KAKAO_MOBILITY_API_KEY;
     const status = await (await places.GET()).json();
     assert.deepEqual(status, {search: true, car: false, transit: true});
+    const queries = [];
     globalThis.fetch = async input => {
       const url = new URL(input);
       assert.equal(url.hostname, 'dapi.kakao.com');
       if (url.pathname.includes('/search/')) {
+        queries.push(url.searchParams.get('query'));
         if (url.searchParams.get('size') === '1') return Response.json({documents: [origin]});
         return Response.json({documents: [{...destination, id: 'unknown', x: '129.2', road_address_name: 'Unknown', place_url: 'https://place.map.kakao.com/1'}, {...destination, id: 'fast', road_address_name: 'Known', place_url: 'https://place.map.kakao.com/2'}]});
       }
@@ -89,6 +91,11 @@ test('places API uses Kakao for transit, ranks only complete estimates, and limi
     assert.equal(data.results[1].verified, false); assert.equal(data.results[1].journeys[0].minutes, null);
     assert.equal(data.results[1].reason, ''); assert.match(data.results[1].journeys[0].url, /^https:\/\/map.kakao.com\//);
     assert.deepEqual(globalThis.__placeAIInput.places.map(p => p.id), ['fast']);
+    const custom = await places.POST(new Request('https://example.test/api/places', {method: 'POST', body: JSON.stringify({type: 'custom', keyword: '보드게임', region: '부산', participants: [{name: '나', origin: '서울역', mode: 'transit'}]})}));
+    assert.equal(custom.status, 200);
+    assert.ok(queries.includes('부산 보드게임'));
+    const invalid = await places.POST(new Request('https://example.test/api/places', {method: 'POST', body: JSON.stringify({type: 'custom', keyword: ' ', region: '부산', participants: [{name: '나', origin: '서울역', mode: 'transit'}]})}));
+    assert.notEqual(invalid.status, 200);
   } finally {
     globalThis.fetch = oldFetch; delete globalThis.__placeAIInput;
     for (const name of envNames) {if (originalEnv[name] === undefined) delete process.env[name]; else process.env[name] = originalEnv[name];}

@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
+import ts from 'typescript';
+const plannerSource = ts.transpileModule(await readFile(new URL('../src/lib/planner.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+const { commonWindows, localInput } = await import(`data:text/javascript;base64,${Buffer.from(plannerSource).toString('base64')}`);
 test("migration enforces private events and derives availability for every group", async () => {
   const db = new PGlite();
   const a = "00000000-0000-0000-0000-000000000001",
@@ -127,6 +130,19 @@ test("migration enforces private events and derives availability for every group
   await db.exec(`set request.jwt.claim.sub='${a}';`);
   await db.exec(`update group_plans set status='confirmed' where id='${plan}'`);
   assert.equal((await db.query(`select common_slots from group_month_availability(${group},'2026-09-29','2026-09-29')`)).rows[0].common_slots, 30);
+  await db.exec(`insert into planner_events(user_id,title,starts_at,ends_at,kind) values('${a}','Morning','2026-10-31T08:00:00+09:00','2026-10-31T09:00:00+09:00','appointment');`);
+  const octoberSlots = async () => (await db.query(`select * from group_availability(${group},'2026-10-31')`)).rows;
+  const daytimeCandidates = rows => commonWindows(rows, 2).filter(window => {
+    const start = localInput(window.start), end = localInput(window.end);
+    return start.slice(0, 10) === end.slice(0, 10) && start.slice(11) >= '09:00' && end.slice(11) <= '22:00';
+  });
+  assert.equal(daytimeCandidates(await octoberSlots()).length, 23);
+  assert.equal((await db.query(`select common_slots from group_month_availability(${group},'2026-10-31','2026-10-31')`)).rows[0].common_slots, 46);
+  await db.exec(`insert into group_plans(group_id,created_by,title,kind,starts_at,ends_at,status) values(${group},'${a}','QA regression','meetup','2026-10-31T10:00:00+09:00','2026-10-31T12:00:00+09:00','confirmed');`);
+  const recalculated = daytimeCandidates(await octoberSlots());
+  assert.equal(recalculated.length, 17);
+  assert.equal((await db.query(`select common_slots from group_month_availability(${group},'2026-10-31','2026-10-31')`)).rows[0].common_slots, 42);
+  assert.equal(recalculated.some(window => Date.parse(window.start) < Date.parse('2026-10-31T12:00:00+09:00') && Date.parse(window.end) > Date.parse('2026-10-31T10:00:00+09:00')), false);
   await db.exec(`set request.jwt.claim.sub='${c}';`);
   assert.equal((await db.query(`select * from group_plans`)).rows.length, 0);
   assert.equal(

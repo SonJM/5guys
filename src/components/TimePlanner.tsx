@@ -50,6 +50,28 @@ export default function TimePlanner() {
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const requestVersion = useRef(0);
   const monthCache = useRef(new MonthCache<MonthData>());
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const modalOpen = editorOpen || !!detailsEvent;
+  useEffect(() => {
+    if (!modalOpen) return;
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialogRef.current?.querySelector<HTMLElement>('button, input, select')?.focus();
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const fields = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]') ?? []);
+      const first = fields[0], last = fields[fields.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    window.addEventListener('keydown', trapFocus);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener('keydown', trapFocus);
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    };
+  }, [modalOpen]);
   useEffect(() => {
     const requestCounter = requestVersion;
     const version = ++requestCounter.current;
@@ -257,7 +279,7 @@ export default function TimePlanner() {
                     onClick={() => setDetailsEvent(e)}
                     className={`rounded-lg border-l-[3px] px-3 py-2 text-left text-xs font-semibold ${e.kind === "work" ? "border-[#0f766e] bg-[#e4f3ef] text-[#155a53] dark:bg-[#24473e] dark:text-[#c4efdf]" : e.kind === "rest" ? "border-[#7799a2] bg-[#e8f0f1] text-[#3d6267] dark:bg-[#29434a] dark:text-[#d7eaeb]" : "border-[#e9796b] bg-[#fbe9e3] text-[#713c35] dark:bg-[#50332e] dark:text-[#fbe9e3]"}`}
                   >
-                    {e.title} {period(e)}
+                    {e.title} {e.all_day ? '종일' : localInput(e.starts_at).slice(0, 10) < day ? `이전 날부터 계속 · 오늘 ${localInput(e.ends_at).slice(0, 10) > day ? '종일' : `${localInput(e.ends_at).slice(11)}까지`}` : period(e)}
                     {e.sync_state === "conflict" && " · 변경 충돌"}
                   </button>
                 ))}
@@ -278,8 +300,8 @@ export default function TimePlanner() {
           ))}
         </details>
       )}
-      {detailsEvent && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailsEvent(null); }}>
-        <div role="dialog" aria-modal="true" aria-label="일정 상세" className="w-full max-w-lg space-y-4 rounded-t-3xl bg-[var(--surface)] p-5 sm:rounded-3xl">
+      {detailsEvent && <div ref={dialogRef} className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailsEvent(null); }}>
+        <div role="dialog" aria-modal="true" aria-label="일정 상세" className="max-h-[88dvh] w-full max-w-lg space-y-4 overflow-y-auto rounded-t-3xl bg-[var(--surface)] p-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:rounded-3xl">
           <div className="flex items-center justify-between gap-3"><h3 className="text-lg font-extrabold">{detailsEvent.title}</h3><button type="button" className="ghost-button" aria-label="상세 닫기" onClick={() => setDetailsEvent(null)}>✕</button></div>
           <p className="muted text-xs">조회 중인 날짜: {day}</p>
           <p className="text-sm">{detailsEvent.all_day ? period(detailsEvent) : `${localInput(detailsEvent.starts_at).replace('T', ' ')} ~ ${localInput(detailsEvent.ends_at).replace('T', ' ')}`}</p>
@@ -288,7 +310,7 @@ export default function TimePlanner() {
             : <p className="muted text-sm">{detailsEvent.kind === 'work' ? '근무는 사진 분석 결과에서 등록합니다.' : '종일·여러 날 일정의 기간 수정은 아직 지원하지 않습니다. 가져온 일정은 원본 캘린더에서 수정할 수 있어요.'}</p>}
         </div>
       </div>}
-      {editorOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-5" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditorOpen(false); }}>
+      {editorOpen && <div ref={dialogRef} className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-5" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditorOpen(false); }}>
       <form
         id="new-event"
         role="dialog"

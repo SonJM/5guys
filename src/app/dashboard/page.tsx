@@ -137,6 +137,7 @@ export default function DashboardPage() {
   }
 
   const selected = views.find((view) => view.id === activeView)
+  const currentGroup = groups.find((group) => group.id === selectedGroupId)
   const mobileGroupActive = activeView === 'group' || activeView === 'findDate'
   const mobileTitle = activeView === 'schedule' ? '내 일정' : mobileGroupActive ? '우리의 빈 시간' : activeView === 'places' ? '어디서 만날까요?' : activeView === 'ocr' ? '근무표 가져오기' : '더보기'
   const mobileDescription = activeView === 'schedule' ? '친구와 맞출 수 있는 시간을 한눈에' : mobileGroupActive ? '일정 제목은 숨기고 가능한 시간만 공유해요' : activeView === 'places' ? '약속 유형에 맞는 장소를 찾아요' : activeView === 'ocr' ? '사진에서 근무 일정을 만들어요' : '내 설정과 연결을 관리해요'
@@ -192,6 +193,7 @@ export default function DashboardPage() {
 
           {!hasWorkPatterns && (activeView === 'schedule' || activeView === 'ocr') && <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f0d7ae] bg-[#fff7e9] px-5 py-4 text-sm text-[#694b27] dark:border-[#725536] dark:bg-[#3b3022] dark:text-[#f8dcb7]"><p><strong>먼저 근무 표기를 설정해 보세요.</strong> 사진 속 주간·야간 등의 기호를 내 일정으로 바꾸는 데 도움이 돼요.</p>{activeView === 'ocr' ? <button type="button" className="font-extrabold underline underline-offset-4" onClick={() => window.dispatchEvent(new Event('planner-open-patterns'))}>설정하기 →</button> : <Link href="/settings/work-pattern" className="font-extrabold underline underline-offset-4">설정하기 →</Link>}</div>}
 
+          {activeView === 'findDate' && currentGroup && <div className="hidden items-center gap-3 lg:flex"><label htmlFor="desktop-calendar-group" className="text-sm font-bold">현재 그룹</label><select id="desktop-calendar-group" value={selectedGroupId ?? ''} onChange={(event) => setSelectedGroupId(Number(event.target.value))}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></div>}
           <GoogleCalendarConnection />
           <div className={`mobile-screen-enter min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8 ${activeView === 'schedule' ? '' : 'hidden'}`}><TimePlanner /></div>
           {(visitedTools.ocr || activeView === 'ocr') && <div className={`min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8 ${activeView === 'ocr' ? '' : 'hidden'}`}><OcrUploader /></div>}

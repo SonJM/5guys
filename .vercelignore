@@ -1,0 +1,8 @@
+.idea/
+work/
+docs/
+test/
+.agents/
+.codex/
+.aws/
+.env*

@@ -55,8 +55,8 @@ export default function GoogleCalendarConnection() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const error = params.get("calendarError");
-    if (error) setMessage(error);
     void refresh().then((connection) => {
+      if (error) setMessage(error);
       if (
         !error &&
         connection?.connected

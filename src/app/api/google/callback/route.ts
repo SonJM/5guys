@@ -8,9 +8,10 @@ export async function GET(req: NextRequest) {
     const config = googleConfig();
     const jar = await cookies();
     const stored = jar.get("calendar_oauth")?.value;
-    jar.delete("calendar_oauth");
+    jar.set("calendar_oauth", "", { path: "/api/google", maxAge: 0 });
     if (!stored) throw new Error("연결 요청이 만료되었습니다.");
     const state = JSON.parse(unseal(stored));
+    if (req.nextUrl.searchParams.has('error')) throw new Error('Calendar 연결을 취소했거나 권한을 승인하지 않았습니다. 앱 로그인은 유지됩니다.');
     const code = req.nextUrl.searchParams.get("code");
     if (
       !code ||
@@ -47,12 +48,17 @@ export async function GET(req: NextRequest) {
     );
     if (!identity.ok) throw new Error("Google 계정을 확인하지 못했습니다.");
     const account = await identity.json();
+    const loginIdentity = user.identities?.find((item) => item.provider === 'google');
+    const loginAccount = loginIdentity?.identity_data?.sub ?? loginIdentity?.id;
+    if (!account.sub || !loginAccount || account.sub !== loginAccount)
+      throw new Error('앱에 로그인한 Google 계정으로 Calendar를 연결해주세요.');
     const db = adminDb();
-    const { data: existing } = await db
+    const { data: existing, error: lookupError } = await db
       .from("google_connections")
       .select("google_account")
       .eq("user_id", user.id)
       .maybeSingle();
+    if (lookupError) throw new Error('기존 Calendar 연결을 확인하지 못했습니다. 다시 시도해주세요.');
     if (existing && existing.google_account !== account.sub)
       throw new Error("기존에 연결한 Google 계정으로 다시 연결해주세요.");
     const { error } = await db

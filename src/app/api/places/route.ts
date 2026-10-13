@@ -27,15 +27,18 @@ export async function POST(req: NextRequest) {
   try {
     const { db } = await session();
     await limited(db, "places", 10);
-    const { type, region, participants } = await req.json();
+    const { type, region, participants, keyword = '' } = await req.json();
     const categories: Record<string, string> = {
       cafe: "카페",
       dinner: "음식점",
       drinks: "술집",
       trip: "관광명소",
+      custom: "직접 입력",
     };
     if (
       !Object.hasOwn(categories, type) ||
+      typeof keyword !== 'string' || keyword.length > 80 ||
+      (type === 'custom' && !keyword.trim()) ||
       typeof region !== "string" ||
       region.trim().length < 2 ||
       region.length > 80 ||
@@ -74,7 +77,7 @@ export async function POST(req: NextRequest) {
       return (await r.json()).documents as Place[];
     }
     const [places, ...origins] = await Promise.all([
-      search(`${region} ${categories[type]}`, 3),
+      search(`${region.trim()} ${keyword.trim() || categories[type]}`, 3),
       ...people.map((p) => search(p.origin, 1)),
     ]);
     if (origins.some((o) => !o[0]))
