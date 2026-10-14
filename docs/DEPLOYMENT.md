@@ -6,7 +6,8 @@
 2. 기존 설치에도 `supabase/migrations/202610120001_calendar_realtime.sql`을 추가 적용한다. 본인 일정 RLS를 유지한 채 DB 변경 알림을 활성화하며, 미적용 시 기존 화면 자동 동기화로 동작한다. Vercel 환경변수를 아래와 같이 설정하고 재배포한다. 이 저장소에는 실제 비밀키를 포함하지 않는다.
 3. Supabase Google 로그인 제공자의 OAuth 클라이언트와 서버의 `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`을 동일한 웹 클라이언트로 설정한다. Supabase Auth 콜백 URI와 서비스 도메인의 `/auth/callback` 허용 URL을 유지한다. 기존 `/api/google/callback` 허용 URI도 이전 연결 복구용으로 유지할 수 있다.
 4. Supabase Auth에서 Google 제공자를 켜고 이메일·비밀번호 제공자를 끈다. 단, 기존 이메일 계정이 있다면 Google identity를 먼저 해당 사용자에 연결해야 데이터 접근이 유지된다. OAuth 제공자를 끄는 작업은 코드를 배포하기 전에 운영 콘솔에서 확인해야 한다.
-5. Google 로그인 시 Calendar 이벤트 권한과 오프라인 접근에 동의한다. 서비스는 로그인 콜백에서 갱신 토큰을 암호화해 저장한다. 기존 Google 연결 사용자는 다시 로그인하면 새 흐름으로 갱신된다.
+5. 최초 Google 로그인 시 Calendar 이벤트 권한과 오프라인 접근에 동의한다. 서비스는 로그인 콜백에서 갱신 토큰을 암호화해 저장한다. 일반 로그인은 동의 화면을 강제로 요청하지 않고 기존 Calendar 토큰을 유지한다. 기존 토큰이 없거나 재인증이 필요한 오류가 확인된 경우 새 토큰을 저장한다. 토큰이 발급되지 않았거나 권한이 부족하면 로그인 상태를 유지한 채 ‘연결 복구’에서 명시적으로 다시 동의한다.
+   - 다른 기기 로그인 직후 복구 경고가 반복되면 위 3번의 OAuth 클라이언트 일치 여부를 먼저 확인한다. 서버의 `Google token refresh failed` 로그는 HTTP 상태와 허용된 오류 코드만 기록한다. `invalid_client`·`unauthorized_client`는 운영 인증 설정을, `invalid_grant`는 토큰 무효화·만료 및 발급 클라이언트 불일치 가능성을 확인한다. 429·5xx는 재인증 대신 기존 토큰으로 자동 재시도한다. 토큰·시크릿이나 Google 응답 원문은 로그에 추가하지 않는다.
 
 ## 환경변수
 

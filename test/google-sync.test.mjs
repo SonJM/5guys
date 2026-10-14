@@ -6,7 +6,9 @@ const moduleURL=source=>`data:text/javascript;base64,${Buffer.from(source).toStr
 const compile=async path=>ts.transpileModule(await readFile(new URL(path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText
 const planner=moduleURL(await compile('../src/lib/planner.ts'))
 const server=moduleURL('export function adminDb(){return globalThis.__googleTestDb}')
-const google=await import(moduleURL((await compile('../src/lib/google.ts')).replace('"@/lib/server"',JSON.stringify(server)).replace('"@/lib/planner"',JSON.stringify(planner))))
+const connection=moduleURL(await compile('../src/lib/google-connection.ts'))
+const {requiresGoogleReconnect}=await import(connection)
+const google=await import(moduleURL((await compile('../src/lib/google.ts')).replace('"@/lib/server"',JSON.stringify(server)).replace('"@/lib/planner"',JSON.stringify(planner)).replace('"@/lib/google-connection"',JSON.stringify(connection))))
 process.env.GOOGLE_TOKEN_ENCRYPTION_KEY=Buffer.alloc(32,7).toString('base64')
 process.env.GOOGLE_CLIENT_ID='test-client';process.env.GOOGLE_CLIENT_SECRET='test-secret';process.env.NEXT_PUBLIC_SITE_URL='https://example.test'
 function setup(initial=[], incremental=false){
@@ -86,4 +88,49 @@ test('unchanged incremental sync does not invalidate the displayed calendar',asy
   const result=await google.syncGoogle('u');assert.equal(result.changed,false);
   const again=await google.syncGoogle('u');assert.equal(again.changed,false);
  }finally{env.restore()}
+})
+test('token endpoint errors only require reconnect for invalid grants, and retain tokens for retry', async () => {
+ for (const [status, code, reconnect] of [[400,'invalid_grant',true],[401,'invalid_client',false],[400,'unauthorized_client',false],[429,'invalid_grant',false],[503,'invalid_grant',false]]) {
+  const env=setup(); const fetchMock=globalThis.fetch; const sealed=env.tables.google_connections[0].refresh_token;
+  globalThis.fetch=async(input,init)=>String(input).includes('oauth2.googleapis.com')
+   ? Response.json({error:code,error_description:'secret must not be exposed'}, {status}) : fetchMock(input,init);
+  try {
+   await assert.rejects(google.syncGoogle('u'), error=>{
+    assert.equal(requiresGoogleReconnect(error.message),reconnect);
+    assert.equal(error.message.includes('secret'),false);
+    return true;
+   });
+   assert.equal(env.tables.google_connections[0].refresh_token,sealed);
+   assert.equal(env.tables.google_connections[0].locked_until,null);
+   assert.equal(requiresGoogleReconnect(env.tables.google_connections[0].last_error),reconnect);
+   globalThis.fetch=fetchMock;
+   await google.syncGoogle('u');
+   assert.equal(env.tables.google_connections[0].last_error,null);
+  } finally { env.restore(); }
+ }
+})
+test('non-JSON token failures and network errors do not request reauthorization', async () => {
+ for (const failure of [()=>new Response('unavailable',{status:503}),()=>{throw new TypeError('fetch failed')}]) {
+  const env=setup(); globalThis.fetch=async()=>failure();
+  try {
+   await assert.rejects(google.syncGoogle('u'),error=>!requiresGoogleReconnect(error.message));
+   assert.equal(env.tables.google_connections[0].locked_until,null);
+  } finally { env.restore(); }
+ }
+})
+test('Calendar quota errors do not request reconnect but insufficient scopes do', async () => {
+ for (const [status,reason,reconnect] of [[403,'rateLimitExceeded',false],[403,'userRateLimitExceeded',false],[403,'insufficientPermissions',true],[500,'backendError',false]]) {
+  const env=setup(); const fetchMock=globalThis.fetch;
+  globalThis.fetch=async(input,init)=>String(input).includes('googleapis.com/calendar')
+   ? Response.json({error:{errors:[{reason}]}},{status}) : fetchMock(input,init);
+  try {
+   await assert.rejects(google.syncGoogle('u'),error=>requiresGoogleReconnect(error.message)===reconnect);
+   assert.equal(env.tables.google_connections[0].locked_until,null);
+  } finally { env.restore(); }
+ }
+})
+test('mentions of permissions or approval in unrelated errors never force reconnect', () => {
+ assert.equal(requiresGoogleReconnect('서버 권한 설정을 확인해주세요.'),false);
+ assert.equal(requiresGoogleReconnect('관리자 승인이 필요합니다.'),false);
+ assert.equal(requiresGoogleReconnect(''),false);
 })

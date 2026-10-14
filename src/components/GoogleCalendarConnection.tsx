@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { requiresGoogleReconnect } from '@/lib/google-connection';
 export default function GoogleCalendarConnection() {
   const [connected, setConnected] = useState<boolean | null>(null);
   const [message, setMessage] = useState("");
@@ -55,6 +56,12 @@ export default function GoogleCalendarConnection() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const error = params.get("calendarError");
+    // A callback notice belongs to this visit, not every future refresh.
+    if (error) {
+      params.delete('calendarError');
+      const query = params.toString();
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+    }
     void refresh().then((connection) => {
       if (error) setMessage(error);
       if (
@@ -99,7 +106,7 @@ export default function GoogleCalendarConnection() {
   }
   if (connected === null && !message && !conflicts.length) return null;
   if (connected && !message && !conflicts.length) return null;
-  const needsReconnect = connected === false || /권한|다시 연결|승인/.test(message);
+  const needsReconnect = connected === false || requiresGoogleReconnect(message);
   return (
     <div className="space-y-3 px-5 text-sm lg:px-0">
       {message && <p role="alert" className="status-note">{message}</p>}

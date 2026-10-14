@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { adminDb } from '@/lib/server'
 import { seal } from '@/lib/google'
+import { requiresGoogleReconnect } from '@/lib/google-connection'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -27,18 +28,22 @@ export async function GET(request: Request) {
       if (!googleAccount || !data.user) return calendarFailure('로그인은 완료됐지만 Google Calendar 계정을 확인하지 못했습니다. 연결 복구를 이용해주세요.')
       const db = adminDb()
       const { data: existing, error: lookupError } = await db.from('google_connections')
-        .select('google_account,refresh_token').eq('user_id', data.user.id).maybeSingle()
+        .select('google_account,refresh_token,last_error').eq('user_id', data.user.id).maybeSingle()
       if (lookupError || (existing && existing.google_account !== googleAccount)) {
         return calendarFailure('Google 계정 연결을 확인해주세요.')
       }
       if (data.session?.provider_refresh_token || existing?.refresh_token) {
+        // Device logins share one Calendar connection. Keep its working token
+        // instead of replacing it with every new Supabase provider session.
+        const useNewToken = !!data.session?.provider_refresh_token &&
+          (!existing?.refresh_token || requiresGoogleReconnect(existing.last_error ?? ''))
         const { error: saveError } = await db.from('google_connections').upsert({
           user_id: data.user.id,
           google_account: googleAccount,
           calendar_id: 'primary',
-          refresh_token: data.session?.provider_refresh_token
-            ? seal(data.session.provider_refresh_token) : existing!.refresh_token,
-          ...(data.session?.provider_refresh_token ? { last_error: null } : {}),
+          refresh_token: useNewToken
+            ? seal(data.session!.provider_refresh_token!) : existing!.refresh_token,
+          ...(useNewToken ? { last_error: null } : {}),
         })
         if (saveError) return calendarFailure('로그인은 완료됐지만 Google Calendar 연결을 저장하지 못했습니다. 연결 복구를 이용해주세요.')
       } else {

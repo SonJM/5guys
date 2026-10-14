@@ -4,7 +4,9 @@ import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
 
 const url = (source) => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+const connectionSource = ts.transpileModule(await readFile(new URL('../src/lib/google-connection.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
 const mocks = {
+  '@/lib/google-connection': connectionSource,
   '@/utils/supabase/server': 'export const createClient = () => ({ auth: { exchangeCodeForSession: async () => globalThis.__callback.auth } });',
   'next/server': 'export const NextResponse = { redirect: (url) => new Response(null, { status: 307, headers: { location: String(url) } }) };',
   'next/headers': 'export const cookies = async () => ({ get: () => ({ value: "state-cookie" }), set: (...args) => globalThis.__callback.cookie = args });',
@@ -53,6 +55,24 @@ test('reusing old Calendar token does not clear its known sync error', async () 
   const state = setup({ token: null, existing: { google_account: 'google-account', refresh_token: 'old-encrypted' } });
   await login.GET(new Request('https://example.test/auth/callback?code=code'));
   assert.equal(state.saved.refresh_token, 'old-encrypted');
+  assert.equal(Object.hasOwn(state.saved, 'last_error'), false);
+});
+test('another device login preserves an established Calendar token even when Google issues a new token', async () => {
+  const state = setup({ existing: { google_account: 'google-account', refresh_token: 'working-encrypted', last_error: null } });
+  await login.GET(new Request('https://example.test/auth/callback?code=code'));
+  assert.equal(state.saved.refresh_token, 'working-encrypted');
+  assert.equal(Object.hasOwn(state.saved, 'last_error'), false);
+});
+test('a fresh login token can replace a connection known to require reauthorization', async () => {
+  const state = setup({ existing: { google_account: 'google-account', refresh_token: 'expired-encrypted', last_error: 'Google 인증 정보를 사용할 수 없습니다. 다시 연결해주세요.' } });
+  await login.GET(new Request('https://example.test/auth/callback?code=code'));
+  assert.equal(state.saved.refresh_token, 'sealed:new-refresh');
+  assert.equal(state.saved.last_error, null);
+});
+test('another device login does not erase a transient sync error or replace its token', async () => {
+  const state = setup({ existing: { google_account: 'google-account', refresh_token: 'working-encrypted', last_error: 'temporary failure' } });
+  await login.GET(new Request('https://example.test/auth/callback?code=code'));
+  assert.equal(state.saved.refresh_token, 'working-encrypted');
   assert.equal(Object.hasOwn(state.saved, 'last_error'), false);
 });
 test('failed app authentication returns to login', async () => {

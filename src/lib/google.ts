@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { adminDb } from "@/lib/server";
 import { addDays, dayString, type PlannerEvent } from "@/lib/planner";
+import { GOOGLE_RECONNECT_MESSAGE, GOOGLE_SCOPE_MESSAGE } from "@/lib/google-connection";
 function encryptionKey() {
   const key = Buffer.from(
     process.env.GOOGLE_TOKEN_ENCRYPTION_KEY ?? "",
@@ -41,6 +42,36 @@ export function googleConfig() {
     redirect: `${origin.replace(/\/$/, "")}/api/google/callback`,
   };
 }
+async function refreshGoogleAccessToken(encryptedToken: string) {
+  const config = googleConfig();
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    body: new URLSearchParams({
+      client_id: config.clientId,
+      client_secret: config.secret,
+      refresh_token: unseal(encryptedToken),
+      grant_type: 'refresh_token',
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    const code = typeof data?.error === 'string' ? data.error : '';
+    // Never log the response body, credentials, or refresh token.
+    const knownCode = ['invalid_grant', 'invalid_client', 'unauthorized_client', 'invalid_request'].includes(code) ? code : 'other';
+    console.warn('Google token refresh failed', { status: response.status, code: knownCode });
+    if (response.status < 500 && response.status !== 429) {
+      if (code === 'invalid_grant') throw new Error(GOOGLE_RECONNECT_MESSAGE);
+      if (['invalid_client', 'unauthorized_client', 'invalid_request'].includes(code))
+        throw new Error('서비스의 Google 인증 설정을 확인해야 합니다. 관리자에게 문의해주세요.');
+    }
+    throw new Error('Google 인증 서버 응답이 지연되고 있습니다. 잠시 후 자동으로 다시 시도합니다.');
+  }
+  const data = await response.json();
+  if (typeof data.access_token !== 'string' || !data.access_token)
+    throw new Error('Google 인증 응답을 확인하지 못했습니다. 잠시 후 자동으로 다시 시도합니다.');
+  return data.access_token as string;
+}
 export async function ensureGoogleWatch(userId: string) {
   const db = adminDb();
   const { data: connection, error } = await db.from('google_connections')
@@ -49,14 +80,7 @@ export async function ensureGoogleWatch(userId: string) {
   if (!Object.hasOwn(connection, 'watch_expires_at')) return; // Older DB: retain ordinary sync until migration is applied.
   if (connection.watch_expires_at && Date.parse(connection.watch_expires_at) > Date.now() + 2 * 86400000) return;
   const config = googleConfig();
-  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    body: new URLSearchParams({client_id: config.clientId, client_secret: config.secret,
-      refresh_token: unseal(connection.refresh_token), grant_type: 'refresh_token'}),
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!tokenResponse.ok) throw new Error('Google 권한을 다시 승인해주세요.');
-  const { access_token } = await tokenResponse.json();
+  const access_token = await refreshGoogleAccessToken(connection.refresh_token);
   const channelId = crypto.randomUUID();
   const channelToken = randomBytes(32).toString('hex');
   const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(connection.calendar_id)}/events/watch`, {
@@ -89,7 +113,7 @@ type GoogleEvent = {
 };
 export async function syncGoogle(userId: string) {
   const db = adminDb();
-  const config = googleConfig();
+  googleConfig();
   const now = new Date().toISOString();
   const { data: connection, error: lockError } = await db
     .from("google_connections")
@@ -105,21 +129,9 @@ export async function syncGoogle(userId: string) {
     );
   try {
     const supportsCheckpoint = Object.hasOwn(connection, 'sync_token');
-    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      body: new URLSearchParams({
-        client_id: config.clientId,
-        client_secret: config.secret,
-        refresh_token: unseal(connection.refresh_token),
-        grant_type: "refresh_token",
-      }),
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!tokenResponse.ok)
-      throw new Error("Google 권한이 만료되었습니다. 다시 연결해주세요.");
-    const { access_token } = await tokenResponse.json();
+    const access_token = await refreshGoogleAccessToken(connection.refresh_token);
     async function api(path: string, init?: RequestInit) {
-      return fetch(
+      const response = await fetch(
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(connection.calendar_id)}/events${path}`,
         {
           ...init,
@@ -131,6 +143,13 @@ export async function syncGoogle(userId: string) {
           signal: AbortSignal.timeout(15000),
         },
       );
+      if (response.status === 401) throw new Error(GOOGLE_RECONNECT_MESSAGE);
+      if (response.status === 403) {
+        const data = await response.clone().json().catch(() => null);
+        if (data?.error?.errors?.some((item: { reason?: string }) => item.reason === 'insufficientPermissions'))
+          throw new Error(GOOGLE_SCOPE_MESSAGE);
+      }
+      return response;
     }
     const from = `${addDays(dayString(), -90)}T00:00:00+09:00`;
     const to = `${addDays(dayString(), 366)}T00:00:00+09:00`;
@@ -160,7 +179,7 @@ export async function syncGoogle(userId: string) {
       }
       if (!response.ok)
         throw new Error(
-          "Google 일정을 읽지 못했습니다. Calendar 접근 권한을 확인해주세요.",
+          "Google 일정을 읽지 못했습니다. 잠시 후 다시 시도합니다. 문제가 계속되면 관리자에게 문의해주세요.",
         );
       const data = await response.json();
       remote.push(...(data.items ?? []));
