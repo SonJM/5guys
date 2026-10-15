@@ -5,6 +5,7 @@ import type { User } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 import { updateUsernameAction } from '@/app/actions'
 import Link from 'next/link'
+import GoogleCalendarConnection from '@/components/GoogleCalendarConnection'
 
 export default function AccountPage() {
   const supabase = createClient()
@@ -51,7 +52,7 @@ export default function AccountPage() {
     <div className="app-shell min-h-screen p-5 sm:p-8">
       <div className="mx-auto w-full max-w-2xl">
         <Link href="/dashboard" className="brand-link text-sm">← 대시보드로 돌아가기</Link>
-        <div className="mt-8"><p className="eyebrow">MY ACCOUNT</p><h1 className="mt-2 text-3xl font-black tracking-tight">계정 설정</h1><p className="muted mt-2 text-sm">내 정보와 근무 표기를 관리할 수 있어요.</p></div>
+        <div className="mt-8"><p className="eyebrow">MY ACCOUNT</p><h1 className="mt-2 text-3xl font-black tracking-tight">계정 설정</h1><p className="muted mt-2 text-sm">내 정보와 캘린더 연결, 근무 표기를 관리할 수 있어요.</p></div>
         <div className="surface-card mt-6 p-6 sm:p-8">
           <h2 className="text-lg font-extrabold">프로필</h2>
           <p className="muted mt-2 text-sm">이메일 · {user?.email}</p>
@@ -78,6 +79,7 @@ export default function AccountPage() {
             {message && <p role="status" className="status-note mt-4">{message}</p>}
           </form>
         </div>
+        {user && <section className="surface-card mt-5 space-y-4 p-6 sm:p-8" aria-labelledby="google-calendar-settings"><div><h2 id="google-calendar-settings" className="text-lg font-extrabold">Google 캘린더 연결</h2><p className="muted mt-2 text-sm">지금 업데이트하면 Google 캘린더의 변경을 가져오고 앱에서 바꾼 일정을 반영해요. 계정이나 권한을 다시 확인하려면 다시 연결해 주세요.</p></div><GoogleCalendarConnection manual /></section>}
         <div className="soft-card mt-5 flex flex-wrap items-center justify-between gap-4 p-6"><div><h2 className="font-extrabold">나의 근무 표기와 시간</h2><p className="muted mt-1 text-sm">근무 유형, OCR 별칭, 교대 시간 설정</p></div><Link href="/settings/work-pattern" className="secondary-button">설정하기 →</Link></div>
       </div>
     </div>
