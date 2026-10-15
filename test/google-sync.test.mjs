@@ -7,7 +7,7 @@ const compile=async path=>ts.transpileModule(await readFile(new URL(path,import.
 const planner=moduleURL(await compile('../src/lib/planner.ts'))
 const server=moduleURL('export function adminDb(){return globalThis.__googleTestDb}')
 const connection=moduleURL(await compile('../src/lib/google-connection.ts'))
-const {requiresGoogleReconnect}=await import(connection)
+const {requiresGoogleConfiguration,requiresGoogleReconnect}=await import(connection)
 const google=await import(moduleURL((await compile('../src/lib/google.ts')).replace('"@/lib/server"',JSON.stringify(server)).replace('"@/lib/planner"',JSON.stringify(planner)).replace('"@/lib/google-connection"',JSON.stringify(connection))))
 process.env.GOOGLE_TOKEN_ENCRYPTION_KEY=Buffer.alloc(32,7).toString('base64')
 process.env.GOOGLE_CLIENT_ID='test-client';process.env.GOOGLE_CLIENT_SECRET='test-secret';process.env.NEXT_PUBLIC_SITE_URL='https://example.test'
@@ -83,20 +83,21 @@ test('expired sync token falls back to a complete snapshot',async()=>{
   assert.equal(env.tables.google_connections[0].sync_token,'t1');
  }finally{env.restore()}
 })
-test('unchanged incremental sync does not invalidate the displayed calendar',async()=>{
+test('unchanged incremental sync reports no imported or exported changes',async()=>{
  const env=setup([],true);try{
   const result=await google.syncGoogle('u');assert.equal(result.changed,false);
   const again=await google.syncGoogle('u');assert.equal(again.changed,false);
  }finally{env.restore()}
 })
 test('token endpoint errors only require reconnect for invalid grants, and retain tokens for retry', async () => {
- for (const [status, code, reconnect] of [[400,'invalid_grant',true],[401,'invalid_client',false],[400,'unauthorized_client',false],[429,'invalid_grant',false],[503,'invalid_grant',false]]) {
+ for (const [status, code, reconnect, configuration] of [[400,'invalid_grant',true,false],[401,'invalid_client',false,true],[400,'unauthorized_client',false,true],[400,'invalid_request',false,true],[429,'invalid_grant',false,false],[503,'invalid_grant',false,false]]) {
   const env=setup(); const fetchMock=globalThis.fetch; const sealed=env.tables.google_connections[0].refresh_token;
   globalThis.fetch=async(input,init)=>String(input).includes('oauth2.googleapis.com')
    ? Response.json({error:code,error_description:'secret must not be exposed'}, {status}) : fetchMock(input,init);
   try {
    await assert.rejects(google.syncGoogle('u'), error=>{
     assert.equal(requiresGoogleReconnect(error.message),reconnect);
+    assert.equal(requiresGoogleConfiguration(error.message),configuration);
     assert.equal(error.message.includes('secret'),false);
     return true;
    });

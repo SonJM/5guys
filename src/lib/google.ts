@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { adminDb } from "@/lib/server";
 import { addDays, dayString, type PlannerEvent } from "@/lib/planner";
-import { GOOGLE_RECONNECT_MESSAGE, GOOGLE_SCOPE_MESSAGE } from "@/lib/google-connection";
+import { GOOGLE_CONFIGURATION_MESSAGE, GOOGLE_RECONNECT_MESSAGE, GOOGLE_SCOPE_MESSAGE } from "@/lib/google-connection";
 function encryptionKey() {
   const key = Buffer.from(
     process.env.GOOGLE_TOKEN_ENCRYPTION_KEY ?? "",
@@ -63,7 +63,7 @@ async function refreshGoogleAccessToken(encryptedToken: string) {
     if (response.status < 500 && response.status !== 429) {
       if (code === 'invalid_grant') throw new Error(GOOGLE_RECONNECT_MESSAGE);
       if (['invalid_client', 'unauthorized_client', 'invalid_request'].includes(code))
-        throw new Error('서비스의 Google 인증 설정을 확인해야 합니다. 관리자에게 문의해주세요.');
+        throw new Error(GOOGLE_CONFIGURATION_MESSAGE);
     }
     throw new Error('Google 인증 서버 응답이 지연되고 있습니다. 잠시 후 자동으로 다시 시도합니다.');
   }

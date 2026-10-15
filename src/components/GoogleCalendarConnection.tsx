@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { requiresGoogleReconnect } from '@/lib/google-connection';
+import { requiresGoogleConfiguration, requiresGoogleReconnect } from '@/lib/google-connection';
+import { requestCalendarSync, startCalendarAutoSync } from '@/lib/calendar-auto-sync';
 export default function GoogleCalendarConnection() {
   const [connected, setConnected] = useState<boolean | null>(null);
   const [message, setMessage] = useState("");
@@ -14,7 +15,7 @@ export default function GoogleCalendarConnection() {
   );
   const refresh = useCallback(async () => {
     try {
-      const r = await fetch("/api/google/sync", { cache: "no-store" });
+      const r = await fetch("/api/google/sync", { cache: "no-store", signal: AbortSignal.timeout(15000) });
       const data = await r.json();
       if (!r.ok) {
         setMessage(data.error ?? "일정 자동 업데이트 상태를 확인하지 못했습니다.");
@@ -23,11 +24,13 @@ export default function GoogleCalendarConnection() {
       setConnected(data.connected);
       setLastSync(data.last_sync ?? null);
       setMessage(data.last_error ?? "");
-      const { data: rows } = await createClient()
+      // Conflict display is secondary: it must not block the sync request.
+      void Promise.resolve(createClient()
         .from("planner_events")
         .select("id,title")
-        .eq("sync_state", "conflict");
-      setConflicts(rows ?? []);
+        .eq("sync_state", "conflict"))
+        .then(({ data: rows, error }) => { if (!error) setConflicts(rows ?? []); })
+        .catch(() => {});
       return data as { connected: boolean; last_sync?: string | null };
     } catch {
       setMessage("일정 자동 업데이트 상태를 확인하지 못했습니다.");
@@ -39,13 +42,8 @@ export default function GoogleCalendarConnection() {
     lastAttempt.current = Date.now();
     setBusy(true);
     try {
-      const r = await fetch("/api/google/sync", { method: "POST" });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error);
+      await requestCalendarSync();
       await refresh();
-      if (data.changed ?? (data.imported + data.exported + data.conflicts > 0))
-        window.dispatchEvent(new Event("planner-synced"));
-      else window.dispatchEvent(new Event('planner-refresh'));
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -62,32 +60,17 @@ export default function GoogleCalendarConnection() {
       const query = params.toString();
       window.history.replaceState(window.history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
     }
-    void refresh().then((connection) => {
-      if (error) setMessage(error);
-      if (
-        !error &&
-        connection?.connected
-      )
-        void sync();
+    let callbackMessage = error;
+    return startCalendarAutoSync(async () => {
+      const connection = await refresh();
+      if (callbackMessage) {
+        setMessage(callbackMessage);
+        callbackMessage = null;
+      }
+      // Even a failed initial lookup is retried on the next tick/focus/online.
+      if (connection?.connected) await sync();
     });
   }, [refresh, sync]);
-  useEffect(() => {
-    if (!connected) return;
-    const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") void sync();
-    }, 120000);
-    return () => clearInterval(id);
-  }, [connected, sync]);
-  useEffect(() => {
-    const onLocalChange = () => { if (!busy && connected) void sync(); };
-    const onVisible = () => { if (document.visibilityState === 'visible' && !busy && connected) void sync(); };
-    window.addEventListener('planner-local-change', onLocalChange);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      window.removeEventListener('planner-local-change', onLocalChange);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [busy, connected, sync]);
   async function resolve(id: string, keepCopy: boolean) {
     setBusy(true);
     try {
@@ -104,13 +87,13 @@ export default function GoogleCalendarConnection() {
       setBusy(false);
     }
   }
-  if (connected === null && !message && !conflicts.length) return null;
-  if (connected && !message && !conflicts.length) return null;
+  if (connected === null && !message && !conflicts.length && !busy) return null;
   const needsReconnect = connected === false || requiresGoogleReconnect(message);
+  const needsConfiguration = requiresGoogleConfiguration(message);
   return (
     <div className="space-y-3 px-5 text-sm lg:px-0">
-      {message && <p role="alert" className="status-note">{message}</p>}
-      {(message || connected === false) && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"><div><p>{needsReconnect ? '일정 자동 업데이트 연결이 필요해요.' : '일정 자동 업데이트가 지연되고 있어요. 잠시 후 다시 시도합니다.'}</p><p className="mt-1 text-xs">저장된 일정 확인과 앱 일정 등록은 이용할 수 있어요. 외부에서 바꾼 일정은 아직 반영되지 않을 수 있습니다.</p><p className="mt-1 text-xs">{lastSync ? `마지막 업데이트: ${new Date(lastSync).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : '아직 완료된 자동 업데이트가 없습니다.'}</p></div>{needsReconnect && <a href="/api/google/connect" className="font-bold underline underline-offset-2">연결 복구</a>}</div>}
+      {!message && connected && <p role="status" className="muted text-xs">{busy ? '일정을 자동으로 업데이트하고 있어요…' : lastSync ? `일정 자동 업데이트 · 마지막 완료 ${new Date(lastSync).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : '일정 자동 업데이트를 준비하고 있어요…'}</p>}
+      {(message || connected === false) && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"><div><p>{needsConfiguration ? '일정 자동 업데이트가 중단되어 있어요. 서비스 설정 확인이 필요합니다.' : needsReconnect ? '일정 자동 업데이트 연결이 필요해요.' : '일정 자동 업데이트가 지연되고 있어요. 잠시 후 다시 시도합니다.'}</p>{message && <p className="mt-1 text-xs">{message}</p>}<p className="mt-1 text-xs">저장된 일정 확인과 앱 일정 등록은 이용할 수 있어요. 외부에서 바꾼 일정은 아직 반영되지 않을 수 있습니다.</p><p className="mt-1 text-xs">{lastSync ? `마지막 업데이트: ${new Date(lastSync).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : '아직 완료된 자동 업데이트가 없습니다.'}</p></div>{needsReconnect && !needsConfiguration && <a href="/api/google/connect" className="font-bold underline underline-offset-2">연결 복구</a>}</div>}
       {conflicts.map((c) => (
         <div
           key={c.id}

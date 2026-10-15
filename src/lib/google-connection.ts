@@ -2,6 +2,15 @@
 // recovery cases explicitly; words such as "권한" also occur in server errors.
 export const GOOGLE_RECONNECT_MESSAGE = 'Google 인증 정보를 사용할 수 없습니다. 다시 연결해주세요.';
 export const GOOGLE_SCOPE_MESSAGE = '캘린더 접근 권한에 동의해주세요.';
+export const GOOGLE_CONFIGURATION_MESSAGE = '서비스의 Google 인증 설정을 확인해야 합니다. 관리자에게 문의해주세요.';
+
+export function requiresGoogleConfiguration(message: string) {
+  return [
+    GOOGLE_CONFIGURATION_MESSAGE,
+    'Google Calendar 서버 연결 설정이 필요합니다.',
+    'Google 토큰 암호화 설정이 필요합니다.',
+  ].includes(message);
+}
 
 const reconnectMessages = new Set([
   GOOGLE_RECONNECT_MESSAGE,
