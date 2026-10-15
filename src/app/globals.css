@@ -96,7 +96,9 @@ textarea { resize: vertical; }
 body[data-planner-modal="open"] nav[aria-label="모바일 주요 메뉴"] { visibility: hidden; }
 .planner-modal { padding: 0; border: 1px solid var(--line); color: var(--foreground); background: var(--surface); width: min(560px, calc(100% - 40px)); max-width: none; max-height: min(88dvh, calc(var(--planner-viewport-height, 100dvh) - 40px)); margin: auto; border-radius: 24px; overflow: hidden; box-shadow: var(--shadow); }
 .planner-modal[open] { display: flex; flex-direction: column; }
-.planner-modal::backdrop { background: rgb(8 24 23 / 48%); }
+.planner-modal::backdrop { background: rgb(8 24 23 / 48%); animation: planner-backdrop-enter .2s ease-out; transition: background .18s ease; }
+.planner-modal-closing::backdrop { animation: none; background: rgb(8 24 23 / 0%); }
+@keyframes planner-backdrop-enter { from { opacity: 0; } to { opacity: 1; } }
 .planner-modal-header { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--line); }
 .planner-modal-header h2 { min-width: 0; font-size: 1.125rem; font-weight: 750; overflow-wrap: anywhere; }
 .planner-modal-header button { flex: none; }
@@ -159,8 +161,11 @@ body[data-planner-modal="open"] nav[aria-label="모바일 주요 메뉴"] { visi
 .mobile-tab:hover { color: var(--brand); background: var(--brand-light); }
 .mobile-tab:active { transform: scale(.92); }
 .mobile-tab[aria-current="page"] { color: var(--brand); background: var(--brand-light); }
-.mobile-screen-enter { animation: mobile-screen-enter .24s ease-out both; }
-@keyframes mobile-screen-enter { from { opacity: .7; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.slide-stage { position: relative; min-width: 0; overflow: clip; }
+.slide-panel { min-width: 0; }
+.slide-panel[hidden] { display: none; }
+.slide-panel[data-exiting="true"] { position: absolute; top: 0; inset-inline: 0; pointer-events: none; }
+.calendar-page-viewport { overflow: clip; padding: 4px; margin: -4px; }
 @media (min-width: 640px) { .calendar-days { gap: 7px; } .calendar-day { min-height: 70px; font-size: 14px; } }
 @media (max-width: 639px) { .month-grid { width: 100%; } .calendar-days { gap: 2px; } .calendar-day { min-height: clamp(42px, 12vw, 54px); } }
 

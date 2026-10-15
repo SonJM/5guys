@@ -1,6 +1,8 @@
 "use client";
 
 import { addDays, dayString } from "@/lib/planner";
+import { useLayoutEffect, useRef } from 'react';
+import { playMotion } from '@/lib/motion';
 
 export function monthBounds(month: string) {
   const first = `${month}-01`;
@@ -27,6 +29,19 @@ export default function MonthGrid({
   marker?: (day: string) => { label: string; color: string } | undefined;
   description?: (day: string) => string | undefined;
 }) {
+  const page = useRef<HTMLDivElement>(null);
+  const previousMonth = useRef(month);
+  useLayoutEffect(() => {
+    const previous = previousMonth.current;
+    previousMonth.current = month;
+    if (previous === month || !page.current) return;
+    const direction = month > previous ? 1 : -1;
+    const animation = playMotion(page.current, [
+      { transform: `translateX(${direction * 56}px)`, opacity: .45 },
+      { transform: 'none', opacity: 1 },
+    ]);
+    return () => animation?.cancel();
+  }, [month]);
   const { first, last } = monthBounds(month);
   const weekday = new Date(`${first}T00:00:00Z`).getUTCDay();
   const start = addDays(first, -((weekday + 6) % 7));
@@ -54,7 +69,7 @@ export default function MonthGrid({
       <div className="calendar-days mb-1 text-center text-[11px] font-semibold text-[var(--muted)] sm:text-xs" aria-hidden="true">
         {["월", "화", "수", "목", "금", "토", "일"].map((name) => <span key={name}>{name}</span>)}
       </div>
-      <div className="calendar-days">
+      <div className="calendar-page-viewport"><div ref={page} className="calendar-days" data-calendar-month={month}>
         {days.map((date) => {
           const selected = date === selectedDay;
           const outside = date.slice(0, 7) !== month;
@@ -76,7 +91,7 @@ export default function MonthGrid({
             </button>
           );
         })}
-      </div>
+      </div></div>
     </div>
   );
 }

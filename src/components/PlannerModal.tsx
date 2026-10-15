@@ -1,11 +1,20 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { playMotion } from '@/lib/motion';
 
 // Wait for a closing modal's history entry to be removed before opening another.
 // Otherwise a delayed popstate can dismiss the newly opened editor.
 let historyRestored: Promise<void> = Promise.resolve();
+
+function modalMotion(node: HTMLDialogElement, editor: boolean, closing = false) {
+  const mobile = window.matchMedia('(max-width: 639px)').matches;
+  const offset = mobile ? editor ? 'translateX(100%)' : 'translateY(36px)' : 'scale(.98)';
+  const resting = { transform: 'none', opacity: 1 };
+  const shifted = { transform: offset, opacity: mobile && editor ? 1 : 0 };
+  return playMotion(node, closing ? [resting, shifted] : [shifted, resting], closing ? 180 : 260, false);
+}
 
 export default function PlannerModal({ title, editor = false, busy = false, onClose, children, footer }: {
   title: string;
@@ -18,7 +27,30 @@ export default function PlannerModal({ title, editor = false, busy = false, onCl
   const dialog = useRef<HTMLDialogElement>(null);
   const close = useRef(onClose);
   const saving = useRef(busy);
+  const mode = useRef(editor);
+  const motion = useRef<Animation | null>(null);
+  const closing = useRef(false);
   useEffect(() => { close.current = onClose; saving.current = busy; }, [onClose, busy]);
+  const dismiss = useCallback(() => {
+    const node = dialog.current;
+    if (!node || saving.current || closing.current) return;
+    closing.current = true;
+    node.inert = true;
+    node.classList.add('planner-modal-closing');
+    motion.current?.cancel();
+    const animation = modalMotion(node, mode.current, true);
+    motion.current = animation;
+    if (animation) void animation.finished.then(() => close.current(), () => {});
+    else close.current();
+  }, []);
+  useLayoutEffect(() => {
+    mode.current = editor;
+    const node = dialog.current;
+    if (!node?.open || closing.current) return;
+    motion.current?.cancel();
+    motion.current = modalMotion(node, editor);
+    void motion.current?.finished.catch(() => {});
+  }, [editor]);
 
   useEffect(() => {
     const element = dialog.current;
@@ -45,9 +77,11 @@ export default function PlannerModal({ title, editor = false, busy = false, onCl
       const back = () => {
         if (window.history.state?.plannerModal === marker) return;
         if (saving.current) window.history.pushState(entry, '', url);
-        else close.current();
+        else dismiss();
       };
       resize();
+      motion.current = modalMotion(element, mode.current);
+      void motion.current?.finished.catch(() => {});
       window.addEventListener('popstate', back);
       window.addEventListener('resize', resize);
       window.visualViewport?.addEventListener('resize', resize);
@@ -57,6 +91,8 @@ export default function PlannerModal({ title, editor = false, busy = false, onCl
         window.removeEventListener('resize', resize);
         window.visualViewport?.removeEventListener('resize', resize);
         window.visualViewport?.removeEventListener('scroll', resize);
+        motion.current?.cancel();
+        element.inert = false;
         element.close();
         document.body.style.overflow = previousOverflow;
         if (previousMarker === null) document.body.removeAttribute('data-planner-modal');
@@ -74,18 +110,18 @@ export default function PlannerModal({ title, editor = false, busy = false, onCl
       active = false;
       cleanup?.();
     };
-  }, []);
+  }, [dismiss]);
 
   return createPortal(
     <dialog ref={dialog} className={`planner-modal ${editor ? 'planner-modal-editor' : 'planner-modal-detail'}`}
       aria-labelledby="planner-modal-title" aria-modal="true" aria-busy={busy}
-      onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}
+      onCancel={(event) => { event.preventDefault(); dismiss(); }}
       onClick={(event) => {
         if (busy || event.target !== event.currentTarget) return;
         const bounds = event.currentTarget.getBoundingClientRect();
-        if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
+        if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dismiss();
       }}>
-      <header className="planner-modal-header"><h2 id="planner-modal-title">{title}</h2><button type="button" autoFocus disabled={busy} className="ghost-button" aria-label="닫기" onClick={onClose}>닫기</button></header>
+      <header className="planner-modal-header"><h2 id="planner-modal-title">{title}</h2><button type="button" autoFocus disabled={busy} className="ghost-button" aria-label="닫기" onClick={dismiss}>닫기</button></header>
       <div className="planner-modal-content">{children}</div>
       {footer && <footer className="planner-modal-footer">{footer}</footer>}
     </dialog>, document.body,

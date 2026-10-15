@@ -18,7 +18,10 @@ const { chromium } = require(require.resolve('playwright', { paths: modulePaths 
         export async function deleteEvents(...payload) { act('delete',payload); }
         export async function updateSeries(...payload) { act('series',payload); }
       ` }));
-      build.onResolve({ filter: /^@\// }, args => ({ path: path.resolve('src', args.path.slice(2)) + (args.path.endsWith('PlannerModal') || args.path.endsWith('MonthGrid') ? '.tsx' : '.ts') }));
+      build.onResolve({ filter: /^@\// }, args => {
+        const base = path.resolve('src', args.path.slice(2));
+        return { path: ['.tsx','.ts'].map(extension=>base+extension).find(file=>fs.existsSync(file)) };
+      });
     } }],
   });
   const css = fs.readdirSync('.next/static/css').filter(name => name.endsWith('.css')).map(name => fs.readFileSync(`.next/static/css/${name}`, 'utf8')).join('\n');
@@ -49,6 +52,7 @@ const { chromium } = require(require.resolve('playwright', { paths: modulePaths 
       await add.click();
       const dialog = page.getByRole('dialog', {name:'일정 추가',exact:true});
       await dialog.waitFor();
+      await page.waitForFunction(()=>document.querySelector('dialog')?.getAnimations().every(animation=>animation.playState!=='running'));
       const box = await dialog.boundingBox();
       if (viewport.width >= 640) {
         assert.ok(Math.abs(box.x + box.width/2 - viewport.width/2) < 2, 'desktop horizontal viewport center');

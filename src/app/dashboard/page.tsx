@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
@@ -16,8 +16,10 @@ import UsernameSetupModal from '@/components/UsernameSetupModal'
 import type { Profile } from '@/types'
 import AppIcon, { type AppIconName } from '@/components/AppIcon'
 import CalendarChangeListener from '@/components/CalendarChangeListener'
+import SlidePanel from '@/components/SlidePanel'
 
 type View = 'schedule' | 'group' | 'findDate' | 'ocr' | 'places' | 'more'
+const viewOrder: View[] = ['schedule', 'findDate', 'group', 'places', 'more', 'ocr']
 
 const views: { id: View; number: string; label: string; title: string; description: string }[] = [
   { id: 'schedule', number: '01', label: '내 일정', title: '내 시간 정리하기', description: '근무와 약속을 시간 단위로 기록하고, 빈 시간을 확인해 보세요.' },
@@ -42,12 +44,16 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [groups, setGroups] = useState<{ id: number; name: string }[]>([])
-  const [activeView, setActiveView] = useState<View>('schedule')
+  const [navigation, setNavigation] = useState<{ view: View; direction: number }>({ view: 'schedule', direction: 1 })
+  const activeView = navigation.view
+  const setActiveView = useCallback((view: View) => setNavigation((current) => current.view === view ? current : {
+    view, direction: viewOrder.indexOf(view) >= viewOrder.indexOf(current.view) ? 1 : -1,
+  }), [])
   const [hasWorkPatterns, setHasWorkPatterns] = useState(true)
-  const [visitedTools, setVisitedTools] = useState({ ocr: false, findDate: false })
+  const [visitedViews, setVisitedViews] = useState<View[]>(['schedule'])
   const [placePlanId, setPlacePlanId] = useState<string | null>(null)
   useEffect(() => {
-    if (activeView === 'ocr' || activeView === 'findDate') setVisitedTools((current) => ({ ...current, [activeView]: true }))
+    setVisitedViews((current) => current.includes(activeView) ? current : [...current, activeView])
   }, [activeView])
 
   useEffect(() => {
@@ -59,7 +65,7 @@ export default function DashboardPage() {
     restoreView()
     window.addEventListener('popstate', restoreView)
     return () => window.removeEventListener('popstate', restoreView)
-  }, [])
+  }, [setActiveView])
 
   const navigate = (view: View) => {
     if (view === activeView) return
@@ -125,13 +131,18 @@ export default function DashboardPage() {
     }
   }
 
-  const renderActiveView = () => {
-    switch (activeView) {
-      case 'schedule': return null
+  const renderView = (view: View) => {
+    switch (view) {
+      case 'schedule': return <TimePlanner />
       case 'group': return <GroupManager user={user!} selectedGroupId={selectedGroupId} setSelectedGroupId={setSelectedGroupId} onGroupsChange={setGroups} />
-      case 'findDate': return null
+      case 'findDate': return <GroupAvailability userId={user!.id} groupId={selectedGroupId} onManageGroup={() => navigate('group')} onFindPlace={(planId) => {
+        const url = new URL(window.location.href)
+        url.searchParams.set('view', 'places'); url.searchParams.set('plan', planId)
+        window.history.pushState(null, '', url)
+        setPlacePlanId(planId); setActiveView('places')
+      }} />
       case 'places': return <PlaceRecommendations groupId={selectedGroupId} planId={placePlanId} onBackToGroup={() => navigate('findDate')} />
-      case 'ocr': return null
+      case 'ocr': return <OcrUploader />
       case 'more': return <div className="space-y-5"><h2 className="text-lg font-extrabold">도구와 설정</h2><button type="button" className="flex w-full items-center gap-3 rounded-2xl bg-[var(--surface-soft)] p-4 text-left font-bold" onClick={() => navigate('ocr')}><AppIcon name="camera" className="size-5 text-[var(--brand)]" />근무표 사진 가져오기 <span className="ml-auto">→</span></button><Link href="/settings/work-pattern" className="flex w-full items-center justify-between rounded-2xl bg-[var(--surface-soft)] p-4 font-bold">근무 유형 설정 <span>→</span></Link><Link href="/account" className="flex w-full items-center justify-between rounded-2xl bg-[var(--surface-soft)] p-4 font-bold">계정 설정 <span>→</span></Link><div className="flex items-center justify-between rounded-2xl bg-[var(--surface-soft)] p-4"><span className="font-bold">테마</span><ThemeSwitcher /></div><SignOutButton /></div>
     }
   }
@@ -195,15 +206,7 @@ export default function DashboardPage() {
 
           {activeView === 'findDate' && currentGroup && <div className="hidden items-center gap-3 lg:flex"><label htmlFor="desktop-calendar-group" className="text-sm font-bold">현재 그룹</label><select id="desktop-calendar-group" value={selectedGroupId ?? ''} onChange={(event) => setSelectedGroupId(Number(event.target.value))}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></div>}
           <GoogleCalendarConnection />
-          <div className={`mobile-screen-enter min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8 ${activeView === 'schedule' ? '' : 'hidden'}`}><TimePlanner /></div>
-          {(visitedTools.ocr || activeView === 'ocr') && <div className={`min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8 ${activeView === 'ocr' ? '' : 'hidden'}`}><OcrUploader /></div>}
-          {(visitedTools.findDate || activeView === 'findDate') && <div className={`min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8 ${activeView === 'findDate' ? '' : 'hidden'}`}><GroupAvailability userId={user.id} groupId={selectedGroupId} onManageGroup={() => navigate('group')} onFindPlace={(planId) => {
-            const url = new URL(window.location.href)
-            url.searchParams.set('view', 'places'); url.searchParams.set('plan', planId)
-            window.history.pushState(null, '', url)
-            setPlacePlanId(planId); setActiveView('places')
-          }} /></div>}
-          {!['schedule', 'ocr', 'findDate'].includes(activeView) && <div className="mobile-screen-enter min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8" key={activeView}>{renderActiveView()}</div>}
+          <div className="slide-stage">{viewOrder.filter((view) => view === activeView || visitedViews.includes(view)).map((view) => <SlidePanel key={view} name={view} active={activeView === view} direction={navigation.direction} className="min-w-0 bg-[var(--surface)] p-4 sm:mx-5 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:p-6 lg:mx-0 lg:p-8">{renderView(view)}</SlidePanel>)}</div>
         </main>
       </div>
       <nav aria-label="모바일 주요 메뉴" className="fixed inset-x-0 bottom-0 z-40 flex h-[calc(70px+env(safe-area-inset-bottom))] items-start justify-around border-t border-[var(--line)] bg-[var(--surface)]/95 px-3 pt-2 shadow-[0_-8px_24px_-20px_rgba(20,66,58,.3)] backdrop-blur lg:hidden">
