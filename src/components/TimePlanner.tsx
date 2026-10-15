@@ -13,12 +13,19 @@ import {
   recurringDays,
   shiftDisplayColor,
   shiftTimes,
+  validDay,
   type PlannerEvent,
 } from "@/lib/planner";
 import MonthGrid from "@/components/MonthGrid";
 import { adjacentMonths, MonthCache } from "@/lib/month-cache";
+import PlannerModal from '@/components/PlannerModal';
 
 type MonthData = Awaited<ReturnType<typeof loadCalendarMonth>>;
+type EditorDraft = {
+  date: string; title: string; start: string; end: string; nextDay: boolean;
+  kind: PlannerEvent['kind']; scope: 'one' | 'following' | 'all';
+  repeat: number; frequency: 'none' | 'daily' | 'weekly' | 'monthly'; interval: number; weekdays: number[];
+};
 
 async function fetchMonth(month: string): Promise<MonthData> {
   const response = await fetch(`/api/calendar/month?${new URLSearchParams({ month })}`, { cache: 'no-store' });
@@ -48,30 +55,16 @@ export default function TimePlanner() {
   const [frequency, setFrequency] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
   const [interval, setInterval] = useState(1);
   const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [editorDay, setEditorDay] = useState(dayString());
+  const [editingEvent, setEditingEvent] = useState<PlannerEvent | null>(null);
+  const drafts = useRef(new Map<string, EditorDraft>());
+  const draftKey = useRef('');
+  const editorError = useRef<HTMLParagraphElement>(null);
   const requestVersion = useRef(0);
   const monthCache = useRef(new MonthCache<MonthData>());
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const modalOpen = editorOpen || !!detailsEvent;
   useEffect(() => {
-    if (!modalOpen) return;
-    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    dialogRef.current?.querySelector<HTMLElement>('button, input, select')?.focus();
-    const trapFocus = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return;
-      const fields = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]') ?? []);
-      const first = fields[0], last = fields[fields.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    };
-    window.addEventListener('keydown', trapFocus);
-    return () => {
-      document.body.style.overflow = overflow;
-      window.removeEventListener('keydown', trapFocus);
-      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
-    };
-  }, [modalOpen]);
+    if (editorOpen && message) editorError.current?.scrollIntoView({ block: 'nearest' });
+  }, [editorOpen, message]);
   useEffect(() => {
     const requestCounter = requestVersion;
     const version = ++requestCounter.current;
@@ -107,12 +100,6 @@ export default function TimePlanner() {
     document.addEventListener('visibilitychange', onVisible);
     return () => { window.removeEventListener("planner-synced", listener); window.removeEventListener('planner-refresh', refresh); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
-  useEffect(() => {
-    if (!editorOpen && !detailsEvent) return;
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") { setEditorOpen(false); setDetailsEvent(null); } };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editorOpen, detailsEvent]);
   async function run(task: () => Promise<void>) {
     setBusy(true);
     setMessage("");
@@ -133,29 +120,49 @@ export default function TimePlanner() {
       setMessage('근무는 근무표 사진에서 가져옵니다. 잘못 인식된 경우 근무표를 다시 확인해주세요.');
       return;
     }
-    setId(event.id);
-    setTitle(event.title);
-    setStart(localInput(event.starts_at).slice(11));
-    setEnd(localInput(event.ends_at).slice(11));
-    setDay(dayString(new Date(event.starts_at)));
-    setMonth(dayString(new Date(event.starts_at)).slice(0, 7));
-    setNextDay(
-      dayString(new Date(event.starts_at)) !==
-        dayString(new Date(event.ends_at)),
-    );
-    setKind(event.kind);
-    setScope("one");
+    openEditor(event);
+  }
+  function openEditor(event: PlannerEvent | null = null) {
+    const key = event ? `edit:${event.id}` : `new:${day}`;
+    draftKey.current = key;
+    const draft = drafts.current.get(key) ?? {
+      date: event ? localInput(event.starts_at).slice(0, 10) : day,
+      title: event?.title ?? '', start: event ? localInput(event.starts_at).slice(11) : '09:00',
+      end: event ? localInput(event.ends_at).slice(11) : '18:00',
+      nextDay: !!event && localInput(event.starts_at).slice(0, 10) !== localInput(event.ends_at).slice(0, 10),
+      kind: event?.kind ?? 'appointment', scope: 'one', repeat: 1, frequency: 'none', interval: 1, weekdays: [],
+    } satisfies EditorDraft;
+    setId(event?.id); setEditingEvent(event); setEditorDay(draft.date);
+    setTitle(draft.title); setStart(draft.start); setEnd(draft.end); setNextDay(draft.nextDay);
+    setKind(draft.kind); setScope(draft.scope); setRepeat(draft.repeat); setFrequency(draft.frequency);
+    setInterval(draft.interval); setWeekdays(draft.weekdays); setMessage('');
+    setDetailsEvent(null);
     setEditorOpen(true);
   }
+  function closeModal() {
+    if (busy) return;
+    if (editorOpen) {
+      drafts.current.set(draftKey.current, { date: editorDay, title, start, end, nextDay, kind, scope, repeat, frequency, interval, weekdays });
+      // Bound per-session drafts without storing private titles on disk.
+      if (drafts.current.size > 20) drafts.current.delete(drafts.current.keys().next().value!);
+    }
+    setEditorOpen(false); setDetailsEvent(null);
+  }
+  function finishEditing() {
+    drafts.current.delete(draftKey.current);
+    setId(undefined); setEditorOpen(false);
+  }
   async function save() {
+    if (!title.trim()) throw new Error('일정 제목을 입력해주세요.');
+    if (!validDay(editorDay)) throw new Error('일정 날짜를 확인해주세요.');
+    if (!nextDay && end <= start) throw new Error('종료 시간을 시작 이후로 설정하거나 다음 날 종료를 선택해주세요.');
     if (id && scope !== "one") {
       await updateSeries(id, title, start, end, nextDay, scope);
-      setId(undefined);
-      setEditorOpen(false);
+      finishEditing();
       return;
     }
-    const days = id ? [day] : recurringDays(day, frequency, interval, repeat, weekdays);
-    const original = events.find((e) => e.id === id);
+    const days = id ? [editorDay] : recurringDays(editorDay, frequency, interval, repeat, weekdays);
+    const original = editingEvent;
     if (original?.all_day)
       throw new Error(
         "가져온 종일 일정은 원본 달력에서 수정해주세요. 시간 일정은 별도로 추가할 수 있습니다.",
@@ -176,9 +183,8 @@ export default function TimePlanner() {
         }),
       })),
     );
-    setId(undefined);
-    setTitle("");
-    setEditorOpen(false);
+    setDay(editorDay); setMonth(editorDay.slice(0, 7));
+    finishEditing();
   }
   const selectedLabel = new Date(`${day}T00:00:00+09:00`).toLocaleDateString("ko-KR", {
     timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long",
@@ -231,7 +237,7 @@ export default function TimePlanner() {
         <div className="min-w-0 space-y-3 px-1 sm:rounded-3xl sm:border sm:border-[var(--line)] sm:bg-[var(--surface)] sm:p-5 xl:p-6">
           <div className="flex items-start justify-between gap-2">
             <div><h2 className="text-base font-extrabold sm:text-lg">{selectedLabel}</h2><p className="muted mt-1 text-xs">{loadingMonth ? '일정을 불러오는 중…' : `선택한 날의 일정 ${events.length}개`}</p></div>
-            <button type="button" className="text-sm font-extrabold text-[var(--brand)] sm:hidden" onClick={() => { setId(undefined); setTitle(""); setEditorOpen(true); }}>+ 일정</button>
+            <button type="button" className="text-sm font-extrabold text-[var(--brand)] sm:hidden" onClick={() => openEditor()}>+ 일정</button>
           </div>
           {sortedEvents.length ? sortedEvents.map((event) => (
             <button key={event.id} type="button" onClick={() => setDetailsEvent(event)} className="flex w-full items-center gap-3 rounded-2xl bg-[var(--surface)] px-4 py-3 text-left shadow-sm ring-1 ring-[var(--line)] transition-transform active:scale-[.98] sm:bg-[var(--surface-soft)] sm:shadow-none">
@@ -239,11 +245,11 @@ export default function TimePlanner() {
               <span className="min-w-0"><span className="block truncate text-sm font-bold">{event.title}</span><span className="muted mt-0.5 block text-xs">{period(event)}{event.sync_state === "conflict" && " · 변경 충돌"}</span></span>
             </button>
           )) : loadingMonth ? <p role="status" className="rounded-2xl bg-[var(--surface-soft)] px-4 py-6 text-center text-sm text-[var(--muted)]">일정을 불러오는 중이에요…</p> : <p className="rounded-2xl bg-[var(--surface-soft)] px-4 py-6 text-center text-sm text-[var(--muted)]">이날은 등록된 일정이 없어요.<br />새 일정을 추가하거나 빈 시간으로 활용해 보세요.</p>}
-          <button type="button" className="primary-button hidden w-full sm:inline-flex" onClick={() => { setId(undefined); setTitle(""); setEditorOpen(true); }}>+ 새 일정</button>
+          <button type="button" className="primary-button hidden w-full sm:inline-flex" onClick={() => openEditor()}>+ 새 일정</button>
           <p className="muted text-xs sm:hidden">빈 시간은 소속 그룹에 자동 반영됩니다.</p>
         </div>
       </div>
-      {message && (
+      {message && !editorOpen && (
         <p
           role="status"
           className="status-note"
@@ -300,148 +306,40 @@ export default function TimePlanner() {
           ))}
         </details>
       )}
-      {detailsEvent && <div ref={dialogRef} className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailsEvent(null); }}>
-        <div role="dialog" aria-modal="true" aria-label="일정 상세" className="max-h-[88dvh] w-full max-w-lg space-y-4 overflow-y-auto rounded-t-3xl bg-[var(--surface)] p-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:rounded-3xl">
-          <div className="flex items-center justify-between gap-3"><h3 className="text-lg font-extrabold">{detailsEvent.title}</h3><button type="button" className="ghost-button" aria-label="상세 닫기" onClick={() => setDetailsEvent(null)}>✕</button></div>
+      {(editorOpen || detailsEvent) && <PlannerModal
+        title={editorOpen ? (id ? '일정 수정' : '일정 추가') : detailsEvent!.title}
+        editor={editorOpen} busy={busy} onClose={closeModal}
+        footer={editorOpen ? <button key="save" type="submit" form="new-event" disabled={busy} className="primary-button">{busy ? '저장 중…' : id ? '변경사항 저장' : '일정 추가하기'}</button>
+          : supportsEdit ? <button key="edit" type="button" className="primary-button" onClick={(event) => { event.preventDefault(); edit(detailsEvent!); }}>일정 수정</button> : undefined}>
+        {editorOpen ? <form id="new-event" onSubmit={(event) => { event.preventDefault(); void run(save); }}>
+          <fieldset disabled={busy} className="event-editor-fields">
+            <label>제목<input className="event-editor-title" aria-label="일정 제목" type="text" required maxLength={200} placeholder="어떤 일정인가요?" value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+            <label>날짜<input aria-label="일정 날짜" type="date" required disabled={!!editingEvent?.series_id && scope !== 'one'} value={editorDay} onChange={(event) => setEditorDay(event.target.value)} /></label>
+            <div>
+              <div className="event-editor-times"><label className="event-field">시작<input aria-label="시작 시간" required type="time" value={start} onChange={(event) => setStart(event.target.value)} /></label><span aria-hidden="true">→</span><label className="event-field">종료<input aria-label="종료 시간" required type="time" value={end} onChange={(event) => setEnd(event.target.value)} /></label></div>
+              <label className="event-editor-nextday"><input type="checkbox" checked={nextDay} onChange={(event) => setNextDay(event.target.checked)} />다음 날 종료</label>
+              {nextDay && validDay(editorDay) && <p className="muted text-xs">{addDays(editorDay, 1)} {end}에 끝나는 일정이에요.</p>}
+            </div>
+            {!id && <>
+              <label>반복<select aria-label="반복 주기" value={frequency} onChange={(event) => setFrequency(event.target.value as typeof frequency)}><option value="none">반복 안 함</option><option value="daily">매일</option><option value="weekly">매주</option><option value="monthly">매월 같은 날짜</option></select></label>
+              {frequency !== 'none' && <div className="event-editor-options">
+                {frequency === 'weekly' && <fieldset><legend className="text-sm font-semibold">반복 요일</legend><div className="event-editor-weekdays">{['일','월','화','수','목','금','토'].map((label, index) => <label key={label}><input type="checkbox" checked={weekdays.includes(index)} onChange={(event) => setWeekdays(event.target.checked ? [...weekdays, index] : weekdays.filter((day) => day !== index))} />{label}</label>)}</div><p className="muted text-xs">요일을 선택하지 않으면 시작일의 요일로 반복해요.</p></fieldset>}
+                <div className="event-editor-options-grid"><label className="event-field">반복 횟수<input aria-label="반복 횟수" type="number" min={1} max={52} required value={repeat} onChange={(event) => setRepeat(Number(event.target.value))} /></label><label className="event-field">반복 간격 ({frequency === 'daily' ? '일' : frequency === 'weekly' ? '주' : '개월'})<input aria-label="반복 간격" type="number" min={1} max={31} required value={interval} onChange={(event) => setInterval(Number(event.target.value))} /></label></div>
+              </div>}
+            </>}
+            {editingEvent?.series_id && <label>변경·삭제 범위<select aria-label="수정 범위" value={scope} onChange={(event) => { const value = event.target.value as typeof scope; setScope(value); if (value !== 'one') setEditorDay(localInput(editingEvent.starts_at).slice(0, 10)); }}><option value="one">이번 일정만</option><option value="following">이 일정과 이후 반복</option><option value="all">전체 반복</option></select>{scope !== 'one' && <span className="muted text-xs">각 일정의 날짜는 유지하고 제목과 시간을 함께 변경해요.</span>}</label>}
+            {id && <details><summary className="muted text-sm">일정 관리</summary><button type="button" className="event-editor-delete" onClick={() => {
+              if (window.confirm('선택한 범위의 일정을 삭제할까요? 연결된 달력에도 삭제가 반영됩니다.')) void run(async () => { await deleteEvents(id, scope); finishEditing(); });
+            }}>일정 삭제</button></details>}
+            {message && <p ref={editorError} role="alert" className="event-editor-error">{message}</p>}
+          </fieldset>
+        </form> : detailsEvent && <div className="space-y-4">
           <p className="muted text-xs">조회 중인 날짜: {day}</p>
           <p className="text-sm">{detailsEvent.all_day ? period(detailsEvent) : `${localInput(detailsEvent.starts_at).replace('T', ' ')} ~ ${localInput(detailsEvent.ends_at).replace('T', ' ')}`}</p>
           <p className="muted text-xs">{detailsEvent.source === 'google' ? '외부 캘린더에서 가져온 일정' : detailsEvent.source === 'ocr' ? '근무표 사진에서 등록한 일정' : '앱에서 등록한 일정'}{detailsEvent.series_id && ' · 반복 일정'}</p>
-          {supportsEdit ? <button type="button" className="primary-button" onClick={() => { edit(detailsEvent); setDetailsEvent(null); }}>일정 수정</button>
-            : <p className="muted text-sm">{detailsEvent.kind === 'work' ? '근무는 사진 분석 결과에서 등록합니다.' : '종일·여러 날 일정의 기간 수정은 아직 지원하지 않습니다. 가져온 일정은 원본 캘린더에서 수정할 수 있어요.'}</p>}
-        </div>
-      </div>}
-      {editorOpen && <div ref={dialogRef} className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-5" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditorOpen(false); }}>
-      <form
-        id="new-event"
-        role="dialog"
-        aria-modal="true"
-        aria-label={id ? "일정 수정" : "새 일정 추가"}
-        className="planner-form max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-2xl sm:rounded-3xl"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void run(save);
-        }}
-      >
-        <div className="flex w-full items-center justify-between"><h3 className="text-lg font-extrabold">{day} · {id ? "일정 수정" : "새 일정 추가"}</h3><button type="button" className="ghost-button !min-h-9" aria-label="닫기" onClick={() => setEditorOpen(false)}>✕</button></div>
-        <input
-          aria-label="일정 제목"
-          autoFocus
-          required
-          maxLength={200}
-          placeholder="일정 제목"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <label>
-          시작{" "}
-          <input
-            required
-            type="time"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-          />
-        </label>
-        <label>
-          종료{" "}
-          <input
-            required
-            type="time"
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-          />
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={nextDay}
-            onChange={(e) => setNextDay(e.target.checked)}
-          />{" "}
-          다음 날 종료
-        </label>
-        {!id && (
-          <>
-            <label>반복
-              <select aria-label="반복 주기" value={frequency} onChange={(e) => setFrequency(e.target.value as typeof frequency)}>
-                <option value="none">반복 안 함</option>
-                <option value="daily">매일</option>
-                <option value="weekly">매주</option>
-                <option value="monthly">매월 같은 날짜</option>
-              </select>
-            </label>
-            {frequency === 'weekly' && <fieldset className="w-full"><legend className="text-sm">반복 요일</legend><div className="flex flex-wrap gap-2">{['일','월','화','수','목','금','토'].map((label, index) => <label key={label} className="flex items-center gap-1 text-sm"><input type="checkbox" checked={weekdays.includes(index)} onChange={(e) => setWeekdays(e.target.checked ? [...weekdays, index] : weekdays.filter((day) => day !== index))} />{label}</label>)}</div></fieldset>}
-            {frequency !== 'none' && <>
-            <label>
-              반복 횟수{" "}
-              <input
-                type="number"
-                min={1}
-                max={52}
-                value={repeat}
-                onChange={(e) => setRepeat(Number(e.target.value))}
-              />
-            </label>
-            <label>
-              반복 간격{" "}
-              <input
-                type="number"
-                min={1}
-                max={31}
-                value={interval}
-                onChange={(e) => setInterval(Number(e.target.value))}
-              />
-            </label>
-            </>}
-          </>
-        )}
-        {id && events.find((e) => e.id === id)?.series_id && (
-          <select
-            aria-label="수정 범위"
-            value={scope}
-            onChange={(e) => setScope(e.target.value as typeof scope)}
-          >
-            <option value="one">이번 일정만</option>
-            <option value="following">이 일정과 이후 반복</option>
-            <option value="all">전체 반복</option>
-          </select>
-        )}
-        <button disabled={busy} className="primary-button">
-          {busy ? "처리 중…" : "저장"}
-        </button>
-        {id && (
-          <>
-          <button
-            type="button"
-            disabled={busy}
-            className="secondary-button !text-[#a54036]"
-              onClick={() => {
-                if (
-                  confirm(
-                    "선택한 범위의 일정을 삭제할까요? 연결된 달력에도 삭제가 반영됩니다.",
-                  )
-                )
-                  void run(async () => {
-                    await deleteEvents(id, scope);
-                    setId(undefined);
-                    setEditorOpen(false);
-                  });
-              }}
-            >
-              삭제
-            </button>
-          <button
-            type="button"
-            className="secondary-button"
-              onClick={() => {
-                setId(undefined);
-                setTitle("");
-              }}
-            >
-              취소
-            </button>
-          </>
-        )}
-      </form>
-      </div>}
+          {!supportsEdit && <p className="muted text-sm">{detailsEvent.kind === 'work' ? '근무는 사진 분석 결과에서 등록합니다.' : '종일·여러 날 일정의 기간 수정은 아직 지원하지 않습니다. 가져온 일정은 원본 캘린더에서 수정할 수 있어요.'}</p>}
+        </div>}
+      </PlannerModal>}
     </section>
   );
 }

@@ -50,6 +50,8 @@
 
 `npm run lint`, `npx tsc --noEmit`, `npm run build`.
 
+일정 편집 모달의 로컬 브라우저 검증: 빌드 후 `npm exec --yes --package=@playwright/test --package=esbuild -- node test/browser/planner-modal.cjs`. Windows의 설치된 Edge를 headless로 사용하며 1440×900, 390×844, 320×568에서 중앙/전체 화면 배치, 축소된 화면의 저장 버튼, Esc·뒤로 가기 초안 복원, 저장 오류 복구와 상세→수정 전환을 검사한다. 실제 컴포넌트와 빌드 CSS를 사용하지만 일정 조회·저장은 테스트 데이터와 메모리 mock으로 대체한다. 결과 이미지는 `work/editor-*.png`에 생성한다. 실제 iOS/Android 가상 키보드는 별도 검증 대상이다.
+
 실환경에서 확인할 항목:
 
 - 두 계정이 같은 그룹일 때 다른 계정의 planner_events와 기존 schedules 직접 조회가 차단되는지 확인.
