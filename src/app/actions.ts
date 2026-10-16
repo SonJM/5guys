@@ -3,6 +3,21 @@ import { session } from "@/lib/server";
 import { revalidatePath } from "next/cache";
 import type { VacationOption } from "@/types";
 
+export async function searchInvitableUsersAction(groupId: number, query: string, offset = 0) {
+  const term = query.trim();
+  if (!Number.isSafeInteger(groupId) || groupId <= 0 || !Number.isSafeInteger(offset) || offset < 0)
+    throw new Error('그룹과 검색 페이지를 확인해주세요.');
+  if (term.length < 2 || term.length > 100)
+    throw new Error('검색어는 2~100자로 입력해주세요.');
+  const { db } = await session();
+  const { data, error } = await db.rpc('planner_search_invitable_users', {
+    target_group: groupId, search_term: term, result_offset: offset,
+  });
+  if (error) throw new Error('사용자 검색에 실패했습니다. 그룹 생성자 권한과 DB 업데이트를 확인해주세요.');
+  const users = (data ?? []) as { id: string; username: string | null; email: string | null }[];
+  return { users: users.slice(0, 20), hasMore: users.length > 20 };
+}
+
 export async function findBestDateAction(
   _duration: number,
   _start: string,
